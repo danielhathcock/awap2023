@@ -16,6 +16,14 @@ class SpawnRequest:
         # self.status = 0  -- waiting
         # self.status = 1  -- success
 
+class MoveRequest:
+    def __init__ (self, status):
+        self.turn = -1
+        self.status = status
+        # self.status = -1 -- failed
+        # self.status = 0  -- waiting
+        # self.status = 1  -- success
+
 class Mining_Logistics:
     def __init__(self, coordinates, direction=None, robots=None):
         self.mining_coordinates = coordinates
@@ -56,7 +64,7 @@ class BotPlayer(Player):
         self.construct_state = 0
 
         # Moving stuff
-        self.bot_move_queues = dict 
+        self.bot_move_queue = dict()
 
         # Mining stuff
         self.mining_assignment = dict() # A dictionary mapping mines to a Mining_Logistics object
@@ -101,7 +109,18 @@ class BotPlayer(Player):
         if self.tiles[row][col] == None: return TileInfo(TileState.ILLEGAL, 0, 0, 0, 0, None)
         return self.tiles[row][col]
 
-    def request_spawn(self, row, col, rtype : RobotType) -> SpawnRequest:
+    def no_collision(self, row, col):
+        tile = self.game_state.get_map()[row][col]
+        return tile.robot is None
+
+    def check_collision(self, rname : str, d : Direction):
+        if not self.game_state.can_move_robot(rname, d): return False
+        rinfo = self.ginfo.ally_robots[rname]
+        tile = self.get_tile_info(rinfo.row + d.value[0], rinfo.col + d.value[1])
+        return tile == None or tile.robot == None
+
+
+    def request_spawn(self, rtype : RobotType, row, col) -> SpawnRequest:
         if self.get_tile_info(row,col).terraform < 1:
             return SpawnRequest(-1)
         req = SpawnRequest(0)
@@ -119,6 +138,23 @@ class BotPlayer(Player):
                 self.spawn_complete.add(spawn_req)
                 self.spawn_queue.pop(spawn_req)
                 self.metal -= 50
+                self.bot_move_queue[spawn_req[4]] = deque()
+
+    def request_move(self, rname : str, d : Direction) -> MoveRequest:
+        if self.game_state.can_move_robot(rname, d):
+            req = MoveRequest(0)
+            self.bot_move_queue[rname].append((d, req))
+            return req
+        return MoveRequest(-1)
+    
+    def try_move(self) -> None:
+        for rname, val in self.bot_move_queue:
+            d, req = val[0]
+            if self.game_state.can_move_robot(rname, d) and self.check_collision(rname, d):
+                self.game_state.move_robot(rname, d)
+                req.turn = self.ginfo.turn
+        return req
+
 
     # Exploration
     def get_explorable_tiles(self, row, col) -> int:
@@ -147,11 +183,7 @@ class BotPlayer(Player):
                     d_options.append(d)
                     continue
         d_move = random.choice(d_options)
-        self.game_state.move_robot(rname, d_move)
-        if self.game_state.can_move_robot(rname,d_move):
-            self.game_state.move_robot(rname, d_move)
-            if self.game_state.can_robot_action(rname):
-                self.game_state.robot_action(rname)
+        self.request_move(rname, d_move)
 
 
     def explore_action(self) -> None:
@@ -164,10 +196,10 @@ class BotPlayer(Player):
                     dest_row = ter.row + d.value[0]
                     dest_col = ter.col + d.value[1]
                     if self.game_state.can_move_robot(ter.name, d) and self.game_state.get_map()[dest_row][dest_col].robot is None:
-                        self.game_state.move_robot(ter.name, d)
+                        self.request_move(ter.name, d)
                         if self.game_state.can_robot_action(ter.name):
                             self.game_state.robot_action(ter.name)
-                        self.game_state.move_robot(exp.name, Direction((ter.row - exp.row, ter.col - exp.col)))
+                        self.request_move(exp.name, Direction((ter.row - exp.row, ter.col - exp.col)))
                         break
             
             else:
@@ -176,7 +208,7 @@ class BotPlayer(Player):
                 self.explore_next(exp.name, exp)
 
                 # Move Terraformer to the previous location of the explorer
-                self.game_state.move_robot(ter.name, Direction((old_exp_row - ter.row, old_exp_col - ter.col)))
+                self.request_move(ter.name, Direction((old_exp_row - ter.row, old_exp_col - ter.col)))
                 if self.game_state.can_robot_action(ter.name):
                     self.game_state.robot_action(ter.name)   
 
@@ -195,7 +227,7 @@ class BotPlayer(Player):
                     break
                 spawn_type = RobotType.EXPLORER
                 if self.game_state.can_spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col):
-                    self.game_state.spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col)
+                    self.request_spawn(spawn_type, spawn_loc.row, spawn_loc.col)
                     self.construct_state = 1
 
         elif self.construct_state == 1:
@@ -212,10 +244,6 @@ class BotPlayer(Player):
             self.explore_action()
 
     # Mining stuff
-    def no_collision(self, row, col):
-        tile = self.game_state.get_map()[row][col]
-        return tile.robot is None
-
     def sorted_mines(self, map):
         """ Input is map object list(list[TileInfo]) """
         height, width = len(map), len(map[0])
@@ -492,14 +520,17 @@ class BotPlayer(Player):
         if self.ginfo.turn <= 5:
             self.exploration_phase()
         elif self.ginfo.turn <= 7:
-            self.initial_two_turns(game_state)
+            # self.initial_two_turns(game_state)
             self.exploration_phase()
         else:
-            self.general_mining_turn(game_state)
+            # self.general_mining_turn(game_state)
             self.exploration_phase()
-            self.terraforming_phase()
+            # self.terraforming_phase()
         if self.ginfo.turn == 200:
             print(len(self.ginfo.ally_robots))
+
+        self.try_move()
+        self.try_spawn()
 
 
         # iterate through dictionary of robots
