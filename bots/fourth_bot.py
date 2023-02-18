@@ -261,12 +261,12 @@ class BotPlayer(Player):
             for tile in row:
                 if tile and tile.state == TileState.MINING and ((tile.row, tile.col) not in S):
                     new_mines.append(tile)
-        print(S)
-        print(new_mines)
+
+        # print(new_mines)
         new_mines.sort(key=lambda x: -x.mining)
         for mine in new_mines:
             D = get_terra_tile(mine)
-            print(f'({mine.row}, {mine.col}), Mining: {mine.mining}, {D}')
+            # print(f'({mine.row}, {mine.col}), Mining: {mine.mining}, {D}')
             if D and mine.mining > 0:
                 D['c'] = 1
                 new_decisions.append(D)
@@ -324,7 +324,7 @@ class BotPlayer(Player):
         # Spawn new miners
         # print(f'next decision {self.next_decision(self.game_state.get_map())}')
         for mine_info in self.next_decision(self.game_state.get_map()):
-            print(f'mine info: {mine_info}')
+            # print(f'mine info: {mine_info}')
             if self.game_state.get_metal() >= 50:
 
                 tt_coordinates = mine_info['tt']
@@ -345,8 +345,8 @@ class BotPlayer(Player):
                     
                     self.assigned_mines.add(mining_coordinates)
                     self.assigned_terra.add(tt_coordinates)
-                else:
-                    raise Exception('We couldnt spawn the miner!!!')
+                # else:
+                    # raise Exception('We couldnt spawn the miner!!!')
             else:
                 print(f'no metal: {self.game_state.get_metal()}')
                 break
