@@ -42,7 +42,7 @@ class BotPlayer(Player):
             if game_state.can_robot_action(rname):
                 game_state.robot_action(rname) # action the robots
 
-
+        print(initial_mine_list)
         # spawn robots
         for mine_info in initial_mine_list:
             tt_coordinates = mine_info['tt']
@@ -50,6 +50,7 @@ class BotPlayer(Player):
             m_direction = (-1 * t_direction[0], -1 * t_direction[1]) # From mining location --> TT
             mining_coordinates = (tt_coordinates[0] + t_direction[0], tt_coordinates[1] + t_direction[1])
 
+            print(mine_info)
             if ginfo.map[mining_coordinates[0]][mining_coordinates[1]].state != TileState.MINING:
                 raise Exception("why isn't this a mining tile??")
 
@@ -59,21 +60,26 @@ class BotPlayer(Player):
             if 2 >= mine_info['c'] > len(self.mining_assignment[mining_coordinates].miners):
                 if game_state.can_spawn_robot(RobotType.MINER, tt_coordinates[0], tt_coordinates[1]): # spawn the robots
                     new_miner = game_state.spawn_robot(RobotType.MINER, tt_coordinates[0], tt_coordinates[1])
-
+                    print(new_miner.name)
                     self.mining_assignment[mining_coordinates].mine2tt = (-1 * t_direction[0], -1 * t_direction[1])
                     self.mining_assignment[mining_coordinates].miners.append(new_miner.name)
 
+        print(self.mining_assignment)
 
-    def general_mining_turn(self, game_state: GameState, new_mines=[]) -> list[tuple[Any, Any]]:
+
+    def general_mining_turn(self, game_state: GameState, new_mines=None) -> list[tuple[Any, Any]]:
         ginfo = game_state.get_info()
         robots = game_state.get_ally_robots()
 
+        #print(self.mining_assignment.keys())
+
         # moving, actioning, or recharging
-        for mining_location in self.mining_assignment.keys():
+        for mining_location in self.mining_assignment:
             logistics = self.mining_assignment[mining_location]
             these_robots = logistics.miners
 
             if 1 >= len(these_robots) > 0: # FIX!!!!!!!!!!
+                print(these_robots)
                 miner = these_robots[0]
                 miner_robot_object = robots[miner]
                 if (miner_robot_object.row, miner_robot_object.col) == mining_location:
@@ -84,7 +90,8 @@ class BotPlayer(Player):
                         game_state.robot_action(miner)
                     else:
                         game_state.move_robot(miner, Direction(logistics.mine2tt))
-                elif (miner_robot_object.row, miner_robot_object.col) == logistics.tt_coordinates:
+                elif ginfo.map[miner_robot_object.row][miner_robot_object.col].terraform > 0:
+                    #(miner_robot_object.row, miner_robot_object.col) == logistics.tt_coordinates:
                     print("CHARGING: " + str(ginfo.turn))
                     if miner_robot_object.battery == GameConstants.INIT_BATTERY:
                         game_state.move_robot(miner, Direction(logistics.tt2mine))
@@ -98,6 +105,9 @@ class BotPlayer(Player):
 
         unfinished_mines = []
         # spawning
+        if new_mines is None:
+            new_mines = []
+
         for mining_location, mine2tt in new_mines:
             self.mining_assignment[mining_location] = Mining_Logistics(coordinates=mining_location, direction=mine2tt)
             row = self.mining_assignment[mining_location].tt_coordinates[0]
@@ -127,7 +137,7 @@ class BotPlayer(Player):
         if ginfo.turn <= 2:
             self.initial_two_turns(game_state)
         else:
-            self.general_mining_turn(game_state, new_mines=[])
+            self.general_mining_turn(game_state)
 
 
 
