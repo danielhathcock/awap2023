@@ -19,6 +19,7 @@ class Mining_Logistics:
         self.tt2mine = (-1 * self.mine2tt[0], -1 * self.mine2tt[1])
         self.tt_coordinates = (self.mining_coordinates[0] + self.mine2tt[0], self.mining_coordinates[1] + self.mine2tt[1])
 
+
 class BotPlayer(Player):
     """
     Players will write a child class that implements (notably the play_turn method)
@@ -29,6 +30,9 @@ class BotPlayer(Player):
         self.mining_assignment = dict() # A dictionary mapping mines to a Mining_Logistics object
         self.charging_spots = []
         self.game_state = None
+
+        self.assigned_mines = set()
+
         return
 
     def no_collision(self, row, col):
@@ -125,11 +129,11 @@ class BotPlayer(Player):
             if c4: decision_list.append(D4)
 
         return decision_list
- 
+
     def next_decision(self, map):
         """ Input is new map and already assigned mines. Returns priority queue of new miners to make"""
-        height, width = len(map), len(map[0])
         S = self.assigned_mines
+        height, width = len(map), len(map[0])
         def get_terra_tile(mine):
             """ Returns a dictionary with keys (tt, td) = (adjacent terra tile, directions FROM the terra tile) """
             x, y = mine.row, mine.col
@@ -145,19 +149,20 @@ class BotPlayer(Player):
         New_decisions = []
         for row in map:
             for tile in row:
-                if tile and tile.state == TileState.MINING and (tile not in S):
+                if tile and tile.state == TileState.MINING and ((tile.row, tile.col) not in S):
                     New_mines.append(tile)
+        # print(S)
+        # print(New_mines)
 
         New_mines.sort(key = lambda x: -x.mining)
         for mine in New_mines:
             D = get_terra_tile(mine)
             if D:
-                S.add(tile)
+                # S.add((mine.row, mine.col))
                 D['c'] = 1
                 New_decisions.append(D)
-        self.assigned_mines = S
+        # self.assigned_mines = S
         return New_decisions
-
 
     def initial_two_turns(self, game_state: GameState) -> None:
         ginfo = game_state.get_info()
@@ -238,15 +243,23 @@ class BotPlayer(Player):
                 raise Exception("Way too  many robots here...")
         
         # Spawn new miners
-        for mine_info in self.next_decision:
+        print(f'next decision {self.next_decision(self.game_state.get_map())}')
+        for mine_info in self.next_decision(self.game_state.get_map()):
             if self.game_state.get_metal() > 50:
-                self.mining_assignment[mining_location] = Mining_Logistics(coordinates=mining_location, direction=mine2tt)
-                row = self.mining_assignment[mining_location].tt_coordinates[0]
-                col = self.mining_assignment[mining_location].tt_coordinates[1]
+                tt_coordinates = mine_info['tt']
+                t_direction = mine_info['td'].value # From TT --> mining location
+                m_direction = (-1 * t_direction[0], -1 * t_direction[1]) # From mining location --> TT
+                mining_coordinates = (tt_coordinates[0] + t_direction[0], tt_coordinates[1] + t_direction[1])
+
+                self.mining_assignment[mining_coordinates] = Mining_Logistics(coordinates=mining_coordinates, direction=m_direction)
+                row = self.mining_assignment[mining_coordinates].tt_coordinates[0]
+                col = self.mining_assignment[mining_coordinates].tt_coordinates[1]
 
                 if game_state.can_spawn_robot(RobotType.MINER, row, col):
                     new_miner = game_state.spawn_robot(RobotType.MINER, row, col)
-                    self.mining_assignment[mining_location].miners.append(new_miner.name)
+                    self.mining_assignment[mining_coordinates].miners.append(new_miner.name)
+                    
+                    # self.assigned_mines.add(mining_coordinates)
             else:
                 break
 
