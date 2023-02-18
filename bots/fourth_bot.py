@@ -299,8 +299,8 @@ class BotPlayer(Player):
                     # Try to rebuild our miner!!
                     row, col = logistics.tt_coordinates
                     if game_state.get_map()[row][col].terraform > 0:
-                        if game_state.can_spawn_robot(RobotType.TERRAFORMER, row, col):
-                            new_rob = game_state.spawn_robot(RobotType.TERRAFORMER, row, col)
+                        if game_state.can_spawn_robot(RobotType.MINER, row, col):
+                            new_rob = game_state.spawn_robot(RobotType.MINER, row, col)
                             logistics.miners = [new_rob.name]
                     else:
                         # Kill this logistics object
@@ -378,8 +378,10 @@ class BotPlayer(Player):
         
         # Move and Action
         print("TERRA: FIND A DIRECTION TO MOVE")
+        count = 0
         for rname, rob in robots.items():
             if rob.type == RobotType.TERRAFORMER and rob.name not in self.exp_terras:
+                count += 1
                 move_dir = None
                 potential_dir = []
                 #aggressive_dir = None
@@ -402,6 +404,7 @@ class BotPlayer(Player):
                 if self.game_state.can_robot_action(rname):
                     self.game_state.robot_action(rname)
 
+        print(count)
         # Spawn new terra formers.
         print("TERRA: Find Allied Tiles")
         ally_tiles = []
