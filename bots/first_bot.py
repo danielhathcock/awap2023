@@ -136,7 +136,7 @@ class BotPlayer(Player):
                 spawn_req[4].name = self.game_state.spawn_robot(spawn_req[3], spawn_req[1], spawn_req[2]).name
                 spawn_req[4].status = 1
                 self.spawn_complete.add(spawn_req[4])
-                self.spawn_queue.pop(spawn_req)
+                self.spawn_queue.remove(spawn_req)
                 self.metal -= 50
                 self.bot_move_queue[spawn_req[4].name] = deque()
 
@@ -148,7 +148,7 @@ class BotPlayer(Player):
         return MoveRequest(-1)
     
     def try_move(self) -> None:
-        for rname, val in self.bot_move_queue:
+        for rname, val in self.bot_move_queue.items():
             d, req = val[0]
             if self.game_state.can_move_robot(rname, d) and self.check_collision(rname, d):
                 self.game_state.move_robot(rname, d)
@@ -180,14 +180,19 @@ class BotPlayer(Player):
         d_options = []
         for d in Direction:
             cur = 0
-            if self.game_state.can_move_robot(rname, d):
-                cur : int = self.get_explorable_tiles(rinfo.row + d.value[0], rinfo.col + d.value[1])
-            if cur > val and self.game_state.get_map()[rinfo.row + d.value[0]][rinfo.col + d.value[1]].robot is None:
+            nr, nc = rinfo.row + d.value[0], rinfo.col + d.value[1]
+            state = self.get_tile_info(nr,nc).state
+            if state == TileState.IMPASSABLE or state == TileState.ILLEGAL:
+                continue
+            if self.tiles[nr][nc].robot != None:
+                continue
+            cur = self.get_explorable_tiles(nr,nc)
+            if(cur < val):
                 val = cur
                 d_options = []
                 d_options.append(d)
                 continue
-            if cur == val and self.tiles[rinfo.row + d.value[0]][rinfo.col + d.value[1]].robot is None:
+            if cur == val:
                 d_options.append(d)
                 continue
         d_move = random.choice(d_options)
