@@ -1,3 +1,7 @@
 replays/*
 __pycache__/
 .DS_Store
+
+
+pyrightconfig.json
+shell.nix
