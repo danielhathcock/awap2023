@@ -482,11 +482,13 @@ class BotPlayer(Player):
             if rob.type == RobotType.TERRAFORMER:
 
                 move_dir = None
+                potential_dir = []
                 for dir in Direction:
                     loc = (rob.row + dir.value[0], rob.col + dir.value[1])
                     if self.game_state.can_move_robot(rname, dir) and self.no_collision(*loc) and loc not in self.assigned_mines and loc not in self.assigned_terra:
-                        move_dir = dir
-
+                        potential_dir.append(dir)
+                if len(potential_dir) > 0:
+                    move_dir = random.choice(potential_dir)
                 # check if we can move in this direction
                 if move_dir is not None and self.game_state.can_move_robot(rname, move_dir):
                     # try to not collide into robots from our team
@@ -508,6 +510,71 @@ class BotPlayer(Player):
 
         return
 
+    def random_exploration_phase(self) -> None:
+
+        # get info
+        ginfo = self.game_state.get_info()
+
+        # get turn/team info
+        height, width = len(ginfo.map), len(ginfo.map[0])
+
+        # print info about the game
+        print(f"Turn {ginfo.turn}, team {ginfo.team}")
+        print("Map height", height)
+        print("Map width", width)
+
+        # find un-occupied ally tile
+        ally_tiles = []
+        for row in range(height):
+            for col in range(width):
+                # get the tile at (row, col)
+                tile = ginfo.map[row][col]
+                # skip fogged tiles
+                if tile is not None: # ignore fogged tiles
+                    if tile.robot is None: # ignore occupied tiles
+                        if tile.terraform > 0: # ensure tile is ally-terraformed
+                            ally_tiles += [tile]
+
+        # print("Ally tiles", ally_tiles)
+
+        # spawn on a random tile
+        print(f"My metal {self.game_state.get_metal()}")
+        if len(ally_tiles) > 0:
+            #print("HERE!!!")
+            # pick a random one to spawn on
+            spawn_loc = random.choice(ally_tiles)
+            spawn_type = RobotType.EXPLORER
+            # spawn the robot
+            print(f"Spawning robot at {spawn_loc.row, spawn_loc.col}")
+            # check if we can spawn here (checks if we can afford, tile is empty, and tile is ours)
+            if self.game_state.can_spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col):
+                self.game_state.spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col)
+
+
+        # move robots
+        robots = self.game_state.get_ally_robots()
+
+        # iterate through dictionary of robots
+        for rname, rob in robots.items():
+            print(f"Robot {rname} at {rob.row, rob.col}")
+
+            # randomly move if possible
+            all_dirs = [dir for dir in Direction]
+            move_dir = random.choice(all_dirs)
+
+            # check if we can move in this direction
+            if self.game_state.can_move_robot(rname, move_dir):
+                # try to not collide into robots from our team
+                dest_loc = (rob.row + move_dir.value[0], rob.col + move_dir.value[1])
+                dest_tile = self.game_state.get_map()[dest_loc[0]][dest_loc[1]]
+
+                if dest_tile.robot is None or dest_tile.robot.team != self.team:
+                    self.game_state.move_robot(rname, move_dir)
+
+            # action if possible
+            if self.game_state.can_robot_action(rname):
+                self.game_state.robot_action(rname)
+
     def play_turn(self, game_state: GameState) -> None:
         # get info
         self.game_state = game_state
@@ -521,16 +588,39 @@ class BotPlayer(Player):
         print(f"My metal {game_state.get_metal()}")
         # Extract information
 
-        if self.ginfo.turn <= 10:
-            self.exploration_phase()
-        elif self.ginfo.turn <= 20:
-            1 + 1
-        elif self.ginfo.turn <= 22:
+        #if self.ginfo.turn <= 10:
+            #self.random_exploration_phase()
+        if self.ginfo.turn <= 2:
             self.initial_two_turns(game_state)
+        elif self.ginfo.turn <= 20:
+            self.random_exploration_phase()
         else:
-            self.exploration_phase()
-            self.general_mining_turn(game_state)
-            self.terraforming_phase()
+            seed = random.choice(range(6))
+            if seed == 0:
+                self.general_mining_turn(game_state)
+                self.random_exploration_phase()
+                self.terraforming_phase()
+            elif seed == 1:
+                self.general_mining_turn(game_state)
+                self.terraforming_phase()
+                self.random_exploration_phase()
+            elif seed==3:
+                self.terraforming_phase()
+                self.general_mining_turn(game_state)
+                self.random_exploration_phase()
+            elif seed == 4:
+                self.terraforming_phase()
+                self.random_exploration_phase()
+                self.general_mining_turn(game_state)
+            elif seed == 5:
+                self.random_exploration_phase()
+                self.terraforming_phase()
+                self.general_mining_turn(game_state)
+            elif seed == 6:
+                self.random_exploration_phase()
+                self.general_mining_turn(game_state)
+                self.terraforming_phase()
+
         if self.ginfo.turn == 200:
             print(len(self.ginfo.ally_robots))
 
