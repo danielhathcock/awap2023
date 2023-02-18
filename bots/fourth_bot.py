@@ -123,6 +123,39 @@ class BotPlayer(Player):
                 val += 1
         return val
 
+    def get_number_unexplored(self, row, col, threshold):
+        if self.get_tile_info(row,col).terraform < 1:
+            return 0
+        ret = 0
+        vis = {(row,col)}
+        queue = deque((row, col, 0))
+        while(queue):
+            qr, qc, m = queue.popleft()
+            if(m == threshold):
+                continue
+            for d in Direction:
+                nr, nc = qr + d.value[0], qc + d.value[1]
+                if vis.__contains__((nr,nc)):
+                    continue
+                if self.get_tile_info(nr,nc).state != TileState.IMPASSABLE:
+                    queue.append((nr,nc,m+1))
+                    vis.add((nr,nc))
+                if self.get_tile_info_info(nr,nc).state == TileState.ILLEGAL:
+                    ret += 1
+        return ret
+
+    def get_explorer_spwan_location(self, threshold):
+        self.tiles = self.game_state.get_map()
+        retlist = []
+        for row in self.height:
+            for col in self.width:
+                retlist.append(self.get_number_unexplored(row,col, threshold))
+        retlist.sort()
+        retlist.reverse()
+        retlist = retlist[0:min(20,len(retlist))]
+        return random.sample(retlist,5)
+
+
     def explore_next(self, rname: str, robot_info: RobotInfo) -> None:
         '''Perform the best move action for an explorer'''
         robot_row = robot_info.row

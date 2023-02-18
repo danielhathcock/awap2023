@@ -22,9 +22,7 @@ class BotPlayer(Player):
         height, width = len(ginfo.map), len(ginfo.map[0])
 
         # print info about the game
-        # print(f"Turn {ginfo.turn}, team {ginfo.team}")
-        # print("Map height", height)
-        # print("Map width", width)
+        print(f"Turn {ginfo.turn}, team {ginfo.team}")
 
         # find un-occupied ally tile
         ally_tiles = []
@@ -38,16 +36,12 @@ class BotPlayer(Player):
                         if tile.terraform > 0: # ensure tile is ally-terraformed
                             ally_tiles += [tile]
 
-        # print("Ally tiles", ally_tiles)
-
         # spawn on a random tile
-        # print(f"My metal {game_state.get_metal()}")
         if len(ally_tiles) > 0:
             # pick a random one to spawn on
             spawn_loc = random.choice(ally_tiles)
             spawn_type = random.choice([RobotType.MINER, RobotType.EXPLORER, RobotType.TERRAFORMER])
             # spawn the robot
-            # print(f"Spawning robot at {spawn_loc.row, spawn_loc.col}")
             # check if we can spawn here (checks if we can afford, tile is empty, and tile is ours)
             if game_state.can_spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col):
                 game_state.spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col)
@@ -58,7 +52,6 @@ class BotPlayer(Player):
 
         # iterate through dictionary of robots
         for rname, rob in robots.items():
-            # print(f"Robot {rname} at {rob.row, rob.col}")
 
             # randomly move if possible
             all_dirs = [dir for dir in Direction]
