@@ -1,5 +1,5 @@
 {
-	"map": "four_corners",
-	"blue_bot": "third_bot",
+	"map": "owl",
+	"blue_bot": "fourth_bot",
 	"red_bot": "example_bot"
 }
