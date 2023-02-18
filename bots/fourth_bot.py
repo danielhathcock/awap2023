@@ -229,6 +229,10 @@ class BotPlayer(Player):
         tile = self.game_state.get_map()[row][col]
         return tile.robot is None
 
+    def no_allied_collision(self, row, col):
+        tile = self.game_state.get_map()[row][col]
+        return tile.robot is None or tile.robot.team != self.team
+
 
     def next_decision(self, map):
         """ Input is new map and already assigned mines. Returns priority queue of new miners to make"""
@@ -358,73 +362,41 @@ class BotPlayer(Player):
 
 
     # Terraforming stuff
-    def terraforming_phase(self):
-        ginfo = self.game_state.get_info()
-        height, width = len(ginfo.map), len(ginfo.map[0])
-        # Move and action the current terraform robots
-        robots = self.game_state.get_ally_robots()
-
-        # iterate through dictionary of robots
-        for rname, rob in robots.items():
-            if rob.type == RobotType.TERRAFORMER:
-
-                move_dir = None
-                for dir in Direction:
-                    loc = (rob.row + dir.value[0], rob.col + dir.value[1])
-                    if self.game_state.can_move_robot(rname, dir) and self.no_collision(*loc) and loc not in self.assigned_mines and loc not in self.assigned_terra:
-                        move_dir = dir
-
-                # check if we can move in this direction
-                if move_dir is not None and self.game_state.can_move_robot(rname, move_dir):
-                    # try to not collide into robots from our team
-                    dest_loc = (rob.row + move_dir.value[0], rob.col + move_dir.value[1])
-                    dest_tile = self.game_state.get_map()[dest_loc[0]][dest_loc[1]]
-                    if dest_tile.robot is None or dest_tile.robot.team != self.team:
-                        #print("here")
-                        self.game_state.move_robot(rname, move_dir)
-                        if self.game_state.can_robot_action(rname):
-                            self.game_state.robot_action(rname)
-
-        # Spawn new terra formers.
-        for row in range(height):
-            for col in range(width):
-                tile = ginfo.map[row][col]
-                if tile is not None and (row, col) not in self.assigned_mines and (row, col) not in self.assigned_terra and tile.terraform > 0:
-                    if self.game_state.can_spawn_robot(RobotType.TERRAFORMER, row, col):
-                        self.game_state.spawn_robot(RobotType.TERRAFORMER, row, col)
-
-        return
-
     def terraforming_phase2(self):
         ginfo = self.game_state.get_info()
         height, width = len(ginfo.map), len(ginfo.map[0])
         # Move and action the current terraform robots
         robots = self.game_state.get_ally_robots()
 
-        # iterate through dictionary of robots
+        # Move and Action
+        print("TERRA: FIND A DIRECTION TO MOVE")
         for rname, rob in robots.items():
             if rob.type == RobotType.TERRAFORMER:
 
                 move_dir = None
                 potential_dir = []
+                #aggressive_dir = None
                 for dir in Direction:
                     loc = (rob.row + dir.value[0], rob.col + dir.value[1])
-                    if self.game_state.can_move_robot(rname, dir) and self.no_collision(*loc) and loc not in self.assigned_mines and loc not in self.assigned_terra:
+                    if self.game_state.can_move_robot(rname, dir) and self.no_allied_collision(*loc) and loc not in self.assigned_mines and loc not in self.assigned_terra:
                         potential_dir.append(dir)
+                        #if ginfo.map[loc[0]][loc[1]].robot is not None and ginfo.map[loc[0]][loc[1]].robot != self.team:
+                            #aggressive_dir = dir
+                            #An opportunity to write ADVERSERIAL CODE!!
+               #if aggressive_dir is not None and ginfo.turn >= 100:
+                    #print("MWUHAHAHAHHAHAHAH!")
+                    #move_dir = aggressive_dir
                 if len(potential_dir) > 0:
                     move_dir = random.choice(potential_dir)
-                # check if we can move in this direction
-                if move_dir is not None and self.game_state.can_move_robot(rname, move_dir):
-                    # try to not collide into robots from our team
-                    dest_loc = (rob.row + move_dir.value[0], rob.col + move_dir.value[1])
-                    dest_tile = self.game_state.get_map()[dest_loc[0]][dest_loc[1]]
-                    if dest_tile.robot is None or dest_tile.robot.team != self.team:
-                        #print("here")
-                        self.game_state.move_robot(rname, move_dir)
-                        if self.game_state.can_robot_action(rname):
-                            self.game_state.robot_action(rname)
+
+                if move_dir is not None:
+                    self.game_state.move_robot(rname, move_dir)
+                #action
+                if self.game_state.can_robot_action(rname):
+                    self.game_state.robot_action(rname)
 
         # Spawn new terra formers.
+        print("TERRA: Find Allied Tiles")
         ally_tiles = []
         for row in range(height):
             for col in range(width):
@@ -436,23 +408,17 @@ class BotPlayer(Player):
                         if tile.terraform > 0:  # ensure tile is ally-terraformed
                             ally_tiles += [tile]
 
-        # spawn on a random tile
+        print("TERRA: Pick a random allied tile")
+        # pick a several random ally tiles to spawn on, while we have the budget to do so
         if len(ally_tiles) > 0:
-            # pick a random one to spawn on
-            spawn_loc = random.choice(ally_tiles)
-            spawn_type = random.choice([RobotType.TERRAFORMER])
-            # spawn the robot
-            # check if we can spawn here (checks if we can afford, tile is empty, and tile is ours)
-            if self.game_state.can_spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col):
-                self.game_state.spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col)
-
-        #for row in range(height):
-            #for col in range(width):
-                #tile = ginfo.map[row][col]
-                #if tile is not None and (row, col) not in self.assigned_mines and (row, col) not in self.assigned_terra and tile.terraform > 0:
-                    #if self.game_state.can_spawn_robot(RobotType.TERRAFORMER, row, col):
-                        #self.game_state.spawn_robot(RobotType.TERRAFORMER, row, col)
-
+            num_new_bots = int(ginfo.metal * 0.8 / GameConstants.ROBOT_SPAWN_COST)
+            spawn_locs = random.sample(ally_tiles, num_new_bots)
+            for spawn_loc in spawn_locs:
+                # spawn the robot
+                # check if we can spawn here (checks if we can afford, tile is empty, and tile is ours)
+                if self.game_state.can_spawn_robot(RobotType.TERRAFORMER, spawn_loc.row, spawn_loc.col):
+                    self.game_state.spawn_robot(RobotType.TERRAFORMER, spawn_loc.row, spawn_loc.col)
+        print("TERRA: done")
         return
 
 
