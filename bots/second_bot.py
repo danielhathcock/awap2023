@@ -481,20 +481,19 @@ class BotPlayer(Player):
         for rname, rob in robots.items():
             if rob.type == RobotType.TERRAFORMER:
 
-                all_dirs = [dir for dir in Direction]  # find a good direction
-                move_dir = Direction.DOWN_RIGHT
-                for dir in all_dirs:
-                    if self.game_state.can_move_robot(rname, dir) and self.no_collision(rob.row + dir.value[0],
-                                                                                        rob.col + dir.value[1]):
+                move_dir = None
+                for dir in Direction:
+                    loc = (rob.row + dir.value[0], rob.col + dir.value[1])
+                    if self.game_state.can_move_robot(rname, dir) and self.no_collision(*loc) and loc not in self.assigned_mines and loc not in self.assigned_terra:
                         move_dir = dir
 
                 # check if we can move in this direction
-                if self.game_state.can_move_robot(rname, move_dir):
+                if move_dir is not None and self.game_state.can_move_robot(rname, move_dir):
                     # try to not collide into robots from our team
                     dest_loc = (rob.row + move_dir.value[0], rob.col + move_dir.value[1])
                     dest_tile = self.game_state.get_map()[dest_loc[0]][dest_loc[1]]
                     if dest_tile.robot is None or dest_tile.robot.team != self.team:
-                        # print("here")
+                        #print("here")
                         self.game_state.move_robot(rname, move_dir)
                         if self.game_state.can_robot_action(rname):
                             self.game_state.robot_action(rname)
@@ -503,7 +502,7 @@ class BotPlayer(Player):
         for row in range(height):
             for col in range(width):
                 tile = ginfo.map[row][col]
-                if tile is not None and tile.terraform > 0:
+                if tile is not None and (row, col) not in self.assigned_mines and (row, col) not in self.assigned_terra and tile.terraform > 0:
                     if self.game_state.can_spawn_robot(RobotType.TERRAFORMER, row, col):
                         self.game_state.spawn_robot(RobotType.TERRAFORMER, row, col)
 
