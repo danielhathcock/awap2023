@@ -147,9 +147,9 @@ class BotPlayer(Player):
     def get_explorer_spwan_location(self, threshold):
         self.tiles = self.game_state.get_map()
         retlist = []
-        for row in self.height:
-            for col in self.width:
-                retlist.append(self.get_number_unexplored(row,col, threshold))
+        for row in range(self.height):
+            for col in range(self.width):
+                retlist.append((self.get_number_unexplored(row,col, threshold), row, col))
         retlist.sort()
         retlist.reverse()
         retlist = retlist[0:min(20,len(retlist))]
@@ -234,19 +234,23 @@ class BotPlayer(Player):
             # print('spawn?')
             if self.construct_state == 0 and self.game_state.get_metal() >= 100:
 
-                ally_tiles = []
-                for row in range(len(self.ginfo.map)):
-                    for col in range(len(self.ginfo.map[0])):
-                        tile = self.ginfo.map[row][col]
-                        if tile and tile.terraform > 0 and tile.robot is None:
-                            ally_tiles.append(tile)
+                # ally_tiles = []
+                # for row in range(len(self.ginfo.map)):
+                #     for col in range(len(self.ginfo.map[0])):
+                #         tile = self.ginfo.map[row][col]
+                #         if tile and tile.terraform > 0 and tile.robot is None:
+                #             ally_tiles.append(tile)
 
-                spawn_loc = random.choice(ally_tiles)
+                # ally_tiles = self.get_explorer_spwan_location(5)
+                # spawn_loc = random.choice(ally_tiles)
+
+                ally_tiles = self.get_explorer_spwan_location(5)
+                _, spawn_row, spawn_col = random.choice(ally_tiles)
 
                 spawn_type = RobotType.EXPLORER
-                if self.game_state.can_spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col):
+                if self.game_state.can_spawn_robot(spawn_type, spawn_row, spawn_col):
                     # print('spawn exp')
-                    self.new_exp = self.game_state.spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col)
+                    self.new_exp = self.game_state.spawn_robot(spawn_type, spawn_row, spawn_col)
                     self.construct_state = 1
 
             elif self.construct_state == 1:
