@@ -364,8 +364,20 @@ class BotPlayer(Player):
 
 
 
-
-
+    def spawn_spam_phase(self):
+        ginfo = self.game_state.get_info()
+        height, width = len(ginfo.map), len(ginfo.map[0])
+        ally_tiles = []
+        for row in range(height):
+            for col in range(width):
+                tile = ginfo.map[row][col]
+                if tile and tile.terraform > 0 and tile.robot is None:
+                    ally_tiles.append(tile)
+        ally_tiles.sort(key = lambda x: x.terraform)
+        for tile in ally_tiles:
+            self.game_state.can_spawn_robot(RobotType.TERRAFORMER, tile.row, tile.col):
+                        self.game_state.spawn_robot(RobotType.TERRAFORMER, tile.row, tile.col)
+            
 
     # Terraforming stuff
     def terraforming_phase2(self):
