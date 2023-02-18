@@ -196,17 +196,25 @@ class BotPlayer(Player):
         # print('Explore action:')
         self.explore_action()
 
+
         if len(self.et_pairs) < 3:
             # print('spawn?')
             if self.construct_state == 0 and self.game_state.get_metal() >= 100:
-                for spawn_loc in self.ally_tiles:
-                    if self.construct_state > 0:
-                        break
-                    spawn_type = RobotType.EXPLORER
-                    if self.game_state.can_spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col):
-                        # print('spawn exp')
-                        self.new_exp = self.game_state.spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col)
-                        self.construct_state = 1
+
+                ally_tiles = []
+                for row in range(len(self.ginfo.map)):
+                    for col in range(len(self.ginfo.map[0])):
+                        tile = self.ginfo.map[row][col]
+                        if tile and tile.terraform > 0 and tile.robot is None:
+                            ally_tiles.append(tile)
+
+                spawn_loc = random.choice(ally_tiles)
+
+                spawn_type = RobotType.EXPLORER
+                if self.game_state.can_spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col):
+                    # print('spawn exp')
+                    self.new_exp = self.game_state.spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col)
+                    self.construct_state = 1
 
             elif self.construct_state == 1:
                 exp_name, exp = self.new_exp.name, self.new_exp
@@ -325,14 +333,14 @@ class BotPlayer(Player):
                         if miner_robot_object.battery >= GameConstants.MINER_ACTION_COST:
                             game_state.robot_action(miner)
                         else:
-                            if self.no_collision(*logistics.tt_coordinates):
+                            if self.no_allied_collision(*logistics.tt_coordinates):
                                 game_state.move_robot(miner, Direction(logistics.mine2tt))
                     elif (miner_robot_object.row, miner_robot_object.col) == logistics.tt_coordinates:
                         #ginfo.map[miner_robot_object.row][miner_robot_object.col].terraform > 0:
                         #
                         # print("CHARGING: " + str(ginfo.turn))
                         if miner_robot_object.battery == GameConstants.INIT_BATTERY:
-                            if self.no_collision(*logistics.mining_coordinates):
+                            if self.no_allied_collision(*logistics.mining_coordinates):
                                 game_state.move_robot(miner, Direction(logistics.tt2mine))
                     else:
                         raise Exception("Miners aren't in the right place!!")
