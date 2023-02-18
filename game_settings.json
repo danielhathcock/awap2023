@@ -1,5 +1,5 @@
 {
-	"map": "test1.awap23m",
-	"blue_bot": "explorer",
-	"red_bot": "explorer"
+	"map": "basic",
+	"blue_bot": "daniel_bot",
+	"red_bot": "test_bot"
 }

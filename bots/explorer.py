@@ -10,14 +10,14 @@ class BotPlayer(Player):
     Players will write a child class that implements (notably the play_turn method)
     """
 
-    game_state : GameState = None
-    game_info : GameInfo = None
-    map_width : int = 0
-    map_height : int = 0
     one_constructed = False
 
     def __init__(self, team: Team):
         self.team = team
+        self.game_state : GameState = None
+        self.game_info : GameInfo = None
+        self.map_width : int = 0
+        self.map_height : int = 0
         return
 
     def isvalid(self, row, col):
@@ -80,4 +80,7 @@ class BotPlayer(Player):
             if game_state.can_spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col):
                 game_state.spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col)
                 self.one_constructed = True
+
+
+        
         return 
