@@ -351,12 +351,12 @@ class BotPlayer(Player):
                 for mine_info in initial_mine_list:
                     if (rob.row, rob.col) == mine_info['tt']:
                         move_dir = mine_info['td']
-                        if game_state.can_move_robot(rname, move_dir):
+                        if game_state.can_move_robot(rname, move_dir) and self.no_collision(rob.row + move_dir[0], rob.col + move_dir[1]):
                             game_state.move_robot(rname, move_dir)
             if game_state.can_robot_action(rname):
                 game_state.robot_action(rname) # action the robots
 
-        print(initial_mine_list)
+        #print(initial_mine_list)
         # spawn robots
         for mine_info in initial_mine_list:
             tt_coordinates = mine_info['tt']
@@ -364,7 +364,7 @@ class BotPlayer(Player):
             m_direction = (-1 * t_direction[0], -1 * t_direction[1]) # From mining location --> TT
             mining_coordinates = (tt_coordinates[0] + t_direction[0], tt_coordinates[1] + t_direction[1])
 
-            print(mine_info)
+            #print(mine_info)
             if ginfo.map[mining_coordinates[0]][mining_coordinates[1]].state != TileState.MINING:
                 raise Exception("why isn't this a mining tile??")
 
@@ -374,11 +374,11 @@ class BotPlayer(Player):
             if 2 >= mine_info['c'] > len(self.mining_assignment[mining_coordinates].miners):
                 if game_state.can_spawn_robot(RobotType.MINER, tt_coordinates[0], tt_coordinates[1]): # spawn the robots
                     new_miner = game_state.spawn_robot(RobotType.MINER, tt_coordinates[0], tt_coordinates[1])
-                    print(new_miner.name)
+                    #print(new_miner.name)
                     self.mining_assignment[mining_coordinates].mine2tt = (-1 * t_direction[0], -1 * t_direction[1])
                     self.mining_assignment[mining_coordinates].miners.append(new_miner.name)
 
-        print(self.mining_assignment)
+        #print(self.mining_assignment)
 
 
     def general_mining_turn(self, game_state: GameState):
@@ -391,7 +391,7 @@ class BotPlayer(Player):
             these_robots = logistics.miners
 
             if 1 >= len(these_robots) > 0: # FIX!!!!!!!!!!
-                print(these_robots)
+                print(these_robots[0])
                 miner = these_robots[0]
                 miner_robot_object = robots[miner]
                 if (miner_robot_object.row, miner_robot_object.col) == mining_location:
@@ -404,8 +404,6 @@ class BotPlayer(Player):
                         if self.no_collision(*logistics.tt_coordinates):
                             game_state.move_robot(miner, Direction(logistics.mine2tt))
                 elif (miner_robot_object.row, miner_robot_object.col) == logistics.tt_coordinates:
-                    #ginfo.map[miner_robot_object.row][miner_robot_object.col].terraform > 0:
-                    #
                     print("CHARGING: " + str(ginfo.turn))
                     if miner_robot_object.battery == GameConstants.INIT_BATTERY:
                         if self.no_collision(*logistics.mining_coordinates):
@@ -489,14 +487,15 @@ class BotPlayer(Player):
         print(f"My metal {game_state.get_metal()}")
         # Extract information
 
-        if self.ginfo.turn <= 5:
+        if self.ginfo.turn <= 10:
             self.exploration_phase()
-        elif self.ginfo.turn <= 7:
+        elif self.ginfo.turn <= 20:
+            1+1
+        elif self.ginfo.turn <=22:
             self.initial_two_turns(game_state)
-            self.exploration_phase()
         else:
-            self.general_mining_turn(game_state)
             self.exploration_phase()
+            self.general_mining_turn(game_state)
             self.terraforming_phase()
         if self.ginfo.turn == 200:
             print(len(self.ginfo.ally_robots))
