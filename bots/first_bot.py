@@ -135,10 +135,10 @@ class BotPlayer(Player):
             if self.game_state.can_spawn_robot(spawn_req[3], spawn_req[1], spawn_req[2]) :
                 spawn_req[4].name = self.game_state.spawn_robot(spawn_req[3], spawn_req[1], spawn_req[2]).name
                 spawn_req[4].status = 1
-                self.spawn_complete.add(spawn_req)
+                self.spawn_complete.add(spawn_req[4])
                 self.spawn_queue.pop(spawn_req)
                 self.metal -= 50
-                self.bot_move_queue[spawn_req[4]] = deque()
+                self.bot_move_queue[spawn_req[4].name] = deque()
 
     def request_move(self, rname : str, d : Direction) -> MoveRequest:
         if self.game_state.can_move_robot(rname, d):
@@ -153,7 +153,6 @@ class BotPlayer(Player):
             if self.game_state.can_move_robot(rname, d) and self.check_collision(rname, d):
                 self.game_state.move_robot(rname, d)
                 req.turn = self.ginfo.turn
-        return req
 
 
     # Exploration
@@ -165,83 +164,41 @@ class BotPlayer(Player):
                 val += 1
         return val
 
-    def explore_next(self, rname : str, robot_info : RobotInfo) -> None:
-        '''Perform the best move action for an explorer'''
-        robot_row = robot_info.row
-        robot_col = robot_info.col
-        val : int = 0
-        d_options : list = []
+    def explore_alone(self, rname : str, rinfo : RobotInfo) -> None:
+        if rinfo.type != RobotType.EXPLORER:
+            return
+        if self.bot_move_queue[rname]:
+            return
+        if rinfo.battery == 0:
+            moves = self.game_state.robot_to_base(rname)
+            for m in moves:
+                self.request_move(rname, m)
+            return
+        if self.get_explorable_tiles(rinfo.row, rinfo.col) and self.game_state.can_robot_action(rname):
+            self.game_state.robot_action(rname)
+        val = 0
+        d_options = []
         for d in Direction:
+            cur = 0
             if self.game_state.can_move_robot(rname, d):
-                cur : int = self.get_explorable_tiles(robot_row + d.value[0], robot_col + d.value[1])
-                if cur > val and self.game_state.get_map()[robot_row+d.value[0]][robot_col+d.value[1]].robot is None:
-                    val = cur
-                    d_options = []
-                    d_options.append(d)
-                    continue
-                if cur == val and self.game_state.get_map()[robot_row+d.value[0]][robot_col+d.value[1]].robot is None:
-                    d_options.append(d)
-                    continue
+                cur : int = self.get_explorable_tiles(rinfo.row + d.value[0], rinfo.col + d.value[1])
+            if cur > val and self.game_state.get_map()[rinfo.row + d.value[0]][rinfo.col + d.value[1]].robot is None:
+                val = cur
+                d_options = []
+                d_options.append(d)
+                continue
+            if cur == val and self.tiles[rinfo.row + d.value[0]][rinfo.col + d.value[1]].robot is None:
+                d_options.append(d)
+                continue
         d_move = random.choice(d_options)
         self.request_move(rname, d_move)
 
-
-    def explore_action(self) -> None:
-        '''Perform one move/action sequence for each of the explore/terraform pairs'''
-        print(self.et_pairs)
-        for exp, ter in self.et_pairs:
-            if exp.battery == 0:
-                # Recharge sequence
-                for d in Direction:
-                    dest_row = ter.row + d.value[0]
-                    dest_col = ter.col + d.value[1]
-                    if self.game_state.can_move_robot(ter.name, d) and self.game_state.get_map()[dest_row][dest_col].robot is None:
-                        self.request_move(ter.name, d)
-                        if self.game_state.can_robot_action(ter.name):
-                            self.game_state.robot_action(ter.name)
-                        self.request_move(exp.name, Direction((ter.row - exp.row, ter.col - exp.col)))
-                        break
-            
-            else:
-                # Explore sequence
-                old_exp_row, old_exp_col = (exp.row, exp.col)
-                self.explore_next(exp.name, exp)
-
-                # Move Terraformer to the previous location of the explorer
-                self.request_move(ter.name, Direction((old_exp_row - ter.row, old_exp_col - ter.col)))
-                if self.game_state.can_robot_action(ter.name):
-                    self.game_state.robot_action(ter.name)   
-
     def exploration_phase(self):
-        # Refresh RobotInfo objects in et_pairs.
-        # TODO: check if any of our robots in here were destroyed
-        for i in range(len(self.et_pairs)):
-            exp, ter = self.et_pairs[i]
-            self.et_pairs[i] = (self.robots[exp.name], self.robots[ter.name])
-
-        print(self.ally_tiles)
-
-        if self.construct_state == 0:
-            for spawn_loc in self.ally_tiles:
-                if self.construct_state > 0:
-                    break
-                spawn_type = RobotType.EXPLORER
-                if self.game_state.can_spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col):
-                    self.request_spawn(spawn_type, spawn_loc.row, spawn_loc.col)
-                    self.construct_state = 1
-
-        elif self.construct_state == 1:
-            exp_name, exp = list(self.robots.items())[0]
-            self.explore_next(exp_name, exp)
-
-            if self.game_state.can_spawn_robot(RobotType.TERRAFORMER, exp.row, exp.col):
-                new_ter = self.game_state.spawn_robot(RobotType.TERRAFORMER, exp.row, exp.col)
-                self.construct_state = 2
-                self.et_pairs.append((exp, new_ter))
-
-            print(self.et_pairs)
-        else:
-            self.explore_action()
+        '''Perform one move/action sequence for each of the explore/terraform pairs'''
+        tile = random.choice(self.ally_tiles)
+        self.request_spawn(RobotType.EXPLORER, tile.row, tile.col)
+        for rname, rinfo in self.bot_move_queue.items():
+            self.explore_alone(rname, self.robots[rname])
 
     # Mining stuff
     def sorted_mines(self, map):
@@ -517,18 +474,21 @@ class BotPlayer(Player):
         print(f"My metal {game_state.get_metal()}")
         # Extract information
 
-        if self.ginfo.turn <= 5:
-            self.exploration_phase()
-        elif self.ginfo.turn <= 7:
-            # self.initial_two_turns(game_state)
-            self.exploration_phase()
-        else:
-            # self.general_mining_turn(game_state)
-            self.exploration_phase()
-            # self.terraforming_phase()
-        if self.ginfo.turn == 200:
-            print(len(self.ginfo.ally_robots))
-
+        # if self.ginfo.turn <= 5:
+        #     self.exploration_phase()
+        # elif self.ginfo.turn <= 7:
+        #     # self.initial_two_turns(game_state)
+        #     self.exploration_phase()
+        # else:
+        #     # self.general_mining_turn(game_state)
+        #     self.exploration_phase()
+        #     # self.terraforming_phase()
+        # if self.ginfo.turn == 200:
+        #     print(len(self.ginfo.ally_robots))
+        
+        for rname, rqueue in self.bot_move_queue.items():
+            print(f"Robot {rname} has move queue {rqueue}")
+        self.exploration_phase()
         self.try_move()
         self.try_spawn()
 
