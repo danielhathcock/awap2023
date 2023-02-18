@@ -43,12 +43,12 @@ class BotPlayer(Player):
         for d in Direction:
             if self.game_state.can_move_robot(rname, d):
                 cur : int = self.get_explorable_tiles(robot_row + d.value[0], robot_col + d.value[1])
-                if cur > val:
+                if cur > val and self.game_state.get_map()[robot_row+d.value[0]][robot_col+d.value[1]].robot is None:
                     val = cur
                     d_options = []
                     d_options.append(d)
                     continue
-                if cur == val:
+                if cur == val and self.game_state.get_map()[robot_row+d.value[0]][robot_col+d.value[1]].robot is None:
                     d_options.append(d)
                     continue
         d_move = random.choice(d_options)
@@ -59,15 +59,29 @@ class BotPlayer(Player):
 
     def explore_action(self, game_state: GameState) -> None:
         '''Perform one move/action sequence for each of the explore/terraform pairs'''
+        print(self.et_pairs)
         for exp, ter in self.et_pairs:
-            old_exp_row, old_exp_col = (exp.row, exp.col)
-            print(old_exp_row, old_exp_col)
-            self.explore_next(exp.name, exp)
+            if exp.battery == 0:
+                # Recharge sequence
+                for d in Direction:
+                    dest_row = ter.row + d.value[0]
+                    dest_col = ter.col + d.value[1]
+                    if game_state.can_move_robot(ter.name, d) and game_state.get_map()[dest_row][dest_col].robot is None:
+                        game_state.move_robot(ter.name, d)
+                        if game_state.can_robot_action(ter.name):
+                            game_state.robot_action(ter.name)
+                        game_state.move_robot(exp.name, Direction((ter.row - exp.row, ter.col - exp.col)))
+                        break
+            
+            else:
+                # Explore sequence
+                old_exp_row, old_exp_col = (exp.row, exp.col)
+                self.explore_next(exp.name, exp)
 
-            # Move Terraformer to the previous location of the explorer
-            print(ter.row, ter.col)
-            game_state.move_robot(ter.name, Direction((old_exp_row - ter.row, old_exp_col - ter.col)))
-            game_state.robot_action(ter.name)
+                # Move Terraformer to the previous location of the explorer
+                game_state.move_robot(ter.name, Direction((old_exp_row - ter.row, old_exp_col - ter.col)))
+                if game_state.can_robot_action(ter.name):
+                    game_state.robot_action(ter.name)   
 
 
 
@@ -105,6 +119,8 @@ class BotPlayer(Player):
         print(f"My metal {game_state.get_metal()}")
         robots = game_state.get_ally_robots()
 
+        # Refresh RobotInfo objects in et_pairs.
+        # TODO: check if any of our robots in here were destroyed
         for i in range(len(self.et_pairs)):
             exp, ter = self.et_pairs[i]
             self.et_pairs[i] = (robots[exp.name], robots[ter.name])
