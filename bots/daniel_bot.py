@@ -32,12 +32,12 @@ class BotPlayer(Player):
         self.game_state = None
 
         self.assigned_mines = set()
+        self.assigned_terra = set()
 
         return
 
     def no_collision(self, row, col):
         tile = self.game_state.get_map()[row][col]
-        print((row, col))
         return tile.robot is None
 
     def sorted_mines(self, map):
@@ -54,24 +54,36 @@ class BotPlayer(Player):
 
     def first_decision(self, map):
         """ Decide how many miners to start with, and where to place them.
-         Returns list of dictionaries, sorted by capacity """
+        Returns list of dictionaries, sorted by capacity """
         height, width = len(map), len(map[0])
         gmt = 15  # Good Mine Threshold
+
+        T = self.assigned_terra.copy()
 
         def get_terra_tile(mine):
             """ Returns a dictionary with keys (tt, td) = (adjacent terra tile, directions FROM the terra tile) """
             x, y = mine.row, mine.col
-            D = {}
+            D, terras = {}, []
             for t in Direction:
                 p, q = t.value
                 nx, ny = x - p, y - q
-                if 0 <= nx < height and 0 <= ny < width and map[nx][ny] and map[nx][
-                    ny].state == TileState.TERRAFORMABLE:
-                    D['tt'], D['td'] = (nx, ny), t
+                if 0 <= nx < height and 0 <= ny < width and map[nx][ny] and map[nx][ny].state == TileState.TERRAFORMABLE:
+                    terras.append( ( (nx,ny) , t) )
+
+            if not terras: return {}
+            for i,t in terras:
+                if i not in T:
+                    T.add(i)
+                    D['tt'], D['td'] = i, t
+                    break
+            if not D: D['tt'], D['td'] = terras[0]
             return D
 
         M = self.sorted_mines(map)
         decision_list = []  # This is a list of dictionaries with keys tt,td,c : Terra Tile, Terra_to_mine Direction, Count
+
+        if not M:
+            return {}
 
         if len(M) == 1:
             D = get_terra_tile(M[0])
@@ -130,19 +142,30 @@ class BotPlayer(Player):
 
         return decision_list
 
+
     def next_decision(self, map):
         """ Input is new map and already assigned mines. Returns priority queue of new miners to make"""
         S = self.assigned_mines
         height, width = len(map), len(map[0])
+        T = self.assigned_terra.copy()
+
         def get_terra_tile(mine):
             """ Returns a dictionary with keys (tt, td) = (adjacent terra tile, directions FROM the terra tile) """
             x, y = mine.row, mine.col
-            D = {}
+            D, terras = {}, []
             for t in Direction:
                 p, q = t.value
-                nx, ny = x - p , y - q
+                nx, ny = x - p, y - q
                 if 0 <= nx < height and 0 <= ny < width and map[nx][ny] and map[nx][ny].state == TileState.TERRAFORMABLE:
-                    D['tt'], D['td'] = (nx, ny), t
+                    terras.append(((nx, ny), t))
+
+            if not terras: return {}
+            for i, t in terras:
+                if i not in T:
+                    T.add(i)
+                    D['tt'], D['td'] = i, t
+                    break
+            if not D: D['tt'], D['td'] = terras[0]
             return D
 
         New_mines = []
@@ -151,19 +174,14 @@ class BotPlayer(Player):
             for tile in row:
                 if tile and tile.state == TileState.MINING and ((tile.row, tile.col) not in S):
                     New_mines.append(tile)
-        # print(S)
-        # print(New_mines)
 
-        New_mines.sort(key = lambda x: -x.mining)
+        New_mines.sort(key=lambda x: -x.mining)
         for mine in New_mines:
             D = get_terra_tile(mine)
             if D:
-                # S.add((mine.row, mine.col))
                 D['c'] = 1
                 New_decisions.append(D)
-        # self.assigned_mines = S
         return New_decisions
-
     def initial_two_turns(self, game_state: GameState) -> None:
         ginfo = game_state.get_info()
 
@@ -201,6 +219,9 @@ class BotPlayer(Player):
                     print(new_miner.name)
                     self.mining_assignment[mining_coordinates].mine2tt = (-1 * t_direction[0], -1 * t_direction[1])
                     self.mining_assignment[mining_coordinates].miners.append(new_miner.name)
+
+                    self.assigned_mines.add(mining_coordinates)
+                    self.assigned_terra.add(tt_coordinates)
 
         print(self.mining_assignment)
 
@@ -258,8 +279,11 @@ class BotPlayer(Player):
                 if game_state.can_spawn_robot(RobotType.MINER, row, col):
                     new_miner = game_state.spawn_robot(RobotType.MINER, row, col)
                     self.mining_assignment[mining_coordinates].miners.append(new_miner.name)
+                    print(f'{row, col} mining at {mining_coordinates}')
+                    print(self.assigned_mines)
                     
-                    # self.assigned_mines.add(mining_coordinates)
+                    self.assigned_mines.add(mining_coordinates)
+                    self.assigned_terra.add(tt_coordinates)
             else:
                 break
 

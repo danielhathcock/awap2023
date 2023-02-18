@@ -36,7 +36,6 @@ class BotPlayer(Player):
                         if tile.terraform > 0: # ensure tile is ally-terraformed
                             ally_tiles += [tile]
 
-
         # spawn on a random tile
         if len(ally_tiles) > 0:
             # pick a random one to spawn on
