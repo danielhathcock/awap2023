@@ -384,8 +384,8 @@ class BotPlayer(Player):
                     ally_tiles.append(tile)
         ally_tiles.sort(key = lambda x: x.terraform)
         for tile in ally_tiles:
-            self.game_state.can_spawn_robot(RobotType.TERRAFORMER, tile.row, tile.col):
-                        self.game_state.spawn_robot(RobotType.TERRAFORMER, tile.row, tile.col)
+            if self.game_state.can_spawn_robot(RobotType.TERRAFORMER, tile.row, tile.col):
+                self.game_state.spawn_robot(RobotType.TERRAFORMER, tile.row, tile.col)
             
 
     # Terraforming stuff
