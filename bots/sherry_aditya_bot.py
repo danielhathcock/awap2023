@@ -33,7 +33,6 @@ class BotPlayer(Player):
 
     def no_collision(self, row, col):
         tile = self.game_state.get_map()[row][col]
-        print((row, col))
         return tile.robot is None
 
     def sorted_mines(self, map):
@@ -192,8 +191,6 @@ class BotPlayer(Player):
                         if self.no_collision(*logistics.tt_coordinates):
                             game_state.move_robot(miner, Direction(logistics.mine2tt))
                 elif (miner_robot_object.row, miner_robot_object.col) == logistics.tt_coordinates:
-                    #ginfo.map[miner_robot_object.row][miner_robot_object.col].terraform > 0:
-                    #
                     print("CHARGING: " + str(ginfo.turn))
                     if miner_robot_object.battery == GameConstants.INIT_BATTERY:
                         if self.no_collision(*logistics.mining_coordinates):
@@ -225,8 +222,6 @@ class BotPlayer(Player):
 
         return unfinished_mines
 
-
-
     def terraforming_phase(self):
         ginfo = self.game_state.get_info()
         height, width = len(ginfo.map), len(ginfo.map[0])
@@ -235,33 +230,36 @@ class BotPlayer(Player):
 
         # iterate through dictionary of robots
         for rname, rob in robots.items():
+            if rob.type == RobotType.TERRAFORMER:
 
-            # randomly move if possible (NOT NECESSARILY SMART)
-            all_dirs = [dir for dir in Direction]
-            move_dir = random.choice(all_dirs)
+                all_dirs = [dir for dir in Direction] # find a good direction
+                move_dir = Direction.DOWN_RIGHT
+                for dir in all_dirs:
+                    if self.game_state.can_move_robot(rname, dir) and self.no_collision(rob.row + dir.value[0], rob.col + dir.value[1]):
+                        move_dir = dir
 
-            # check if we can move in this direction
-            if self.game_state.can_move_robot(rname, move_dir):
-                # try to not collide into robots from our team
-                dest_loc = (rob.row + move_dir.value[0], rob.col + move_dir.value[1])
-                dest_tile = self.game_state.get_map()[dest_loc[0]][dest_loc[1]]
-
-                if rob.type == RobotType.TERRAFORMER and (dest_tile.robot is None or dest_tile.robot.team != self.team):
-                    self.game_state.move_robot(rname, move_dir)
+                # check if we can move in this direction
+                if self.game_state.can_move_robot(rname, move_dir):
+                    # try to not collide into robots from our team
+                    dest_loc = (rob.row + move_dir.value[0], rob.col + move_dir.value[1])
+                    dest_tile = self.game_state.get_map()[dest_loc[0]][dest_loc[1]]
+                    if dest_tile.robot is None or dest_tile.robot.team != self.team:
+                        print("here")
+                        self.game_state.move_robot(rname, move_dir)
+                        if self.game_state.can_robot_action(rname):
+                            self.game_state.robot_action(rname)
 
         # Spawn new terra formers.
         for row in range(height):
             for col in range(width):
                 tile = ginfo.map[row][col]
-                if tile.terraform() > 0:
+                if tile is not None and tile.terraform > 0:
                     if self.game_state.can_spawn_robot(RobotType.TERRAFORMER, row, col):
                         self.game_state.spawn_robot(RobotType.TERRAFORMER, row, col)
 
         return
 
-
     def play_turn(self, game_state: GameState) -> None:
-
         # get info
         ginfo = game_state.get_info()
         self.game_state = game_state
@@ -272,8 +270,9 @@ class BotPlayer(Player):
             self.initial_two_turns(game_state)
         else:
             self.general_mining_turn(game_state)
-            #self.terraforming_phase()
-
+            self.terraforming_phase()
+        if ginfo.turn == 200:
+            print(len(ginfo.ally_robots))
 
 
 
