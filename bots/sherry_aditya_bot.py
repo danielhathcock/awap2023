@@ -17,7 +17,7 @@ class Mining_Logistics:
         self.mine2tt = direction  # Vector mining location --> terraforming tile direction
 
         self.tt2mine = (-1 * self.mine2tt[0], -1 * self.mine2tt[1])
-        self.tt_coordinates = (self.mining_coordinates[0] - self.mine2tt[0], self.mining_coordinates[1] - self.mine2tt[1])
+        self.tt_coordinates = (self.mining_coordinates[0] + self.mine2tt[0], self.mining_coordinates[1] + self.mine2tt[1])
 
 class BotPlayer(Player):
     """
@@ -28,7 +28,13 @@ class BotPlayer(Player):
         self.team = team
         self.mining_assignment = dict() # A dictionary mapping mines to a Mining_Logistics object
         self.charging_spots = []
+        self.game_state = None
         return
+
+    def no_collision(self, row, col):
+        tile = self.game_state.get_map()[row][col]
+        print((row, col))
+        return tile.robot is None
 
     def initial_two_turns(self, game_state: GameState) -> None:
         ginfo = game_state.get_info()
@@ -93,12 +99,15 @@ class BotPlayer(Player):
                     if miner_robot_object.battery >= GameConstants.MINER_ACTION_COST:
                         game_state.robot_action(miner)
                     else:
-                        game_state.move_robot(miner, Direction(logistics.mine2tt))
-                elif ginfo.map[miner_robot_object.row][miner_robot_object.col].terraform > 0:
-                    #(miner_robot_object.row, miner_robot_object.col) == logistics.tt_coordinates:
+                        if self.no_collision(*logistics.tt_coordinates):
+                            game_state.move_robot(miner, Direction(logistics.mine2tt))
+                elif (miner_robot_object.row, miner_robot_object.col) == logistics.tt_coordinates:
+                    #ginfo.map[miner_robot_object.row][miner_robot_object.col].terraform > 0:
+                    #
                     print("CHARGING: " + str(ginfo.turn))
                     if miner_robot_object.battery == GameConstants.INIT_BATTERY:
-                        game_state.move_robot(miner, Direction(logistics.tt2mine))
+                        if self.no_collision(*logistics.mining_coordinates):
+                            game_state.move_robot(miner, Direction(logistics.tt2mine))
                 else:
                     raise Exception("Miners aren't in the right place!!")
             elif len(these_robots) == 2:
@@ -126,22 +135,38 @@ class BotPlayer(Player):
 
         return unfinished_mines
 
+
+
+    def terraforming_phase(self):
+        ginfo = self.game_state.get_info()
+        height, width = len(ginfo.map), len(ginfo.map[0])
+        # Move and action the current terraform robots
+
+
+        # Spawn new terra formers.
+        for row in range(height):
+            for col in range(width):
+                tile = ginfo.map[row][col]
+                if tile.terraform() > 0:
+                    if self.game_state.can_spawn_robot(RobotType.TERRAFORMER, row, col):
+                        self.game_state.spawn_robot(RobotType.TERRAFORMER, row, col)
+
+        return
+
+
     def play_turn(self, game_state: GameState) -> None:
 
         # get info
         ginfo = game_state.get_info()
+        self.game_state = game_state
 
         # Extract information
-        #current_map = ginfo.map
-        #for x in range(len(current_map)):
-            #for y in range(len(current_map[0])):
-                #if current_map[x][y] == TileState.MINING and (x, y) not in self.mining_assignment.keys():
-                    #self.mining_assignment[(x, y)] = Mining_Logistics(coordinates=(x, y))
 
         if ginfo.turn <= 2:
             self.initial_two_turns(game_state)
         else:
             self.general_mining_turn(game_state)
+            self.terraforming_phase()
 
 
 
