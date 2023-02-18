@@ -97,14 +97,19 @@ def next_decision(self, map):
         return D
 
     New_mines = []
+    New_decisions = []
     for row in map:
         for tile in row:
             if tile and tile.state == TileState.MINING and (tile not in S):
-                D = get_terra_tile(tile)
-                if D:
-                    S.add(tile)
-                    D['c'] = 1
-                    New_mines.append(D)
+                New_mines.append(tile)
+
+    New_mines.sort(key = lambda x: -x.mining)
+    for mine in New_mines:
+        D = get_terra_tile(mine)
+        if D:
+            S.add(tile)
+            D['c'] = 1
+            New_decisions.append(D)
     self.assigned_mines = S
-    return New_mines
+    return New_decisions
 
