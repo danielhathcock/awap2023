@@ -4,5 +4,6 @@ in pkgs.mkShell {
   name = "awap2023";
   buildInputs = [
     pkgs.python3Packages.numpy
+    pkgs.python3Packages.scipy
   ];
 }
