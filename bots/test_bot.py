@@ -14,7 +14,7 @@ class BotPlayer(Player):
         return
 
     def play_turn(self, game_state: GameState) -> None:
-
+        return 
         # get info
         ginfo = game_state.get_info()
 
