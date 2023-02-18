@@ -1,5 +1,5 @@
 {
-	"map": "x",
+	"map": "basic",
 	"blue_bot": "fourth_bot",
-	"red_bot": "fifth_bot"
+	"red_bot": "fourth_bot"
 }
