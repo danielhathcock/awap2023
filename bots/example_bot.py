@@ -38,7 +38,7 @@ class BotPlayer(Player):
                         if tile.terraform > 0: # ensure tile is ally-terraformed
                             ally_tiles += [tile]
 
-        print("Ally tiles", ally_tiles)
+        # print("Ally tiles", ally_tiles)
 
         # spawn on a random tile
         print(f"My metal {game_state.get_metal()}")
