@@ -73,6 +73,9 @@ class BotPlayer(Player):
         M = self.sorted_mines(map)
         decision_list = []  # This is a list of dictionaries with keys tt,td,c : Terra Tile, Terra_to_mine Direction, Count
 
+        if not M:
+            return {}
+
         if len(M) == 1:
             D = get_terra_tile(M[0])
             D['c'] = 2
