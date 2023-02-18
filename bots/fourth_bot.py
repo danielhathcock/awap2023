@@ -8,6 +8,7 @@ from src.player import Player
 from src.map import TileInfo, RobotInfo
 from src.robot import Robot
 
+import time
 
 class SpawnRequest:
     def __init__(self, status):
@@ -197,7 +198,7 @@ class BotPlayer(Player):
         # print('Explore action:')
         self.explore_action()
 
-        if to_spawn:
+        if len(self.et_pairs) < 3:
             # print('spawn?')
             if self.construct_state == 0 and self.game_state.get_metal() >= 100:
                 for spawn_loc in self.ally_tiles:
@@ -375,17 +376,24 @@ class BotPlayer(Player):
         # Move and action the current terraform robots
         robots = self.game_state.get_ally_robots()
 
+
+        
         # Move and Action
         print("TERRA: FIND A DIRECTION TO MOVE")
+        total1 = 0
+        total2 = 0
+        total3 = 0
         for rname, rob in robots.items():
-            if rob.type == RobotType.TERRAFORMER:
-
+            t1 = time.time()
+            if rob.type == RobotType.TERRAFORMER and rob.name not in self.exp_terras:
+                t2 = time.time()
+                total1 += t2-t1
                 move_dir = None
                 potential_dir = []
                 #aggressive_dir = None
                 for dir in Direction:
                     loc = (rob.row + dir.value[0], rob.col + dir.value[1])
-                    if self.game_state.can_move_robot(rname, dir) and self.no_allied_collision(*loc) and loc not in self.assigned_mines and loc not in self.assigned_terra:
+                    if self.game_state.can_move_robot(rname, dir) and loc not in self.assigned_mines and loc not in self.assigned_terra and self.no_allied_collision(*loc):
                         potential_dir.append(dir)
                         #if ginfo.map[loc[0]][loc[1]].robot is not None and ginfo.map[loc[0]][loc[1]].robot != self.team:
                             #aggressive_dir = dir
@@ -393,6 +401,8 @@ class BotPlayer(Player):
                #if aggressive_dir is not None and ginfo.turn >= 100:
                     #print("MWUHAHAHAHHAHAHAH!")
                     #move_dir = aggressive_dir
+                t3 = time.time()
+                total2 += t3-t2
                 if len(potential_dir) > 0:
                     move_dir = random.choice(potential_dir)
 
@@ -401,7 +411,10 @@ class BotPlayer(Player):
                 #action
                 if self.game_state.can_robot_action(rname):
                     self.game_state.robot_action(rname)
+                t4 = time.time()
+                total3 += t4-t3
 
+        print(total1, total2, total3)
         # Spawn new terra formers.
         print("TERRA: Find Allied Tiles")
         ally_tiles = []
@@ -432,6 +445,10 @@ class BotPlayer(Player):
     def play_turn(self, game_state: GameState) -> None:
         # get info
         self.game_state = game_state
+
+        if game_state.get_time_left() < 2.5:
+            return
+
         self.init_vars()
         self.update_vars()
 
