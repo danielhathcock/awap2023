@@ -1,5 +1,5 @@
 {
 	"map": "basic",
-	"blue_bot": "daniel_bot",
-	"red_bot": "test_bot"
+	"blue_bot": "explorer",
+	"red_bot": "explorer"
 }
