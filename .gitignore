@@ -438,6 +438,3 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/python,emacs,visualstudiocode,macos,linux,windows,pycharm+all,sublimetext
-
-pyrightconfig.json
-shell.nix
