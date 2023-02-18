@@ -1,5 +1,11 @@
 {
+<<<<<<< HEAD
 	"map": "test",
 	"blue_bot": "explorer",
 	"red_bot": "explorer"
+=======
+	"map": "x",
+	"blue_bot": "sherry_aditya_bot",
+	"red_bot": "nothing_bot"
+>>>>>>> origin/sherry
 }
