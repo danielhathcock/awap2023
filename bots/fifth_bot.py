@@ -56,6 +56,7 @@ class BotPlayer(Player):
 
         # exploring stuff
         self.et_pairs: list[tuple[RobotInfo, RobotInfo]] = []
+        self.exp_terras = set()
         self.construct_state = 0
         self.new_exp = None
 
@@ -118,14 +119,14 @@ class BotPlayer(Player):
                 val += 1
         return val
 
-    def explore_next(self, rname: str, robot_info: RobotInfo) -> None:
+    def explore_next(self, rname: str, robot_info: RobotInfo) -> Direction:
         '''Perform the best move action for an explorer'''
         robot_row = robot_info.row
         robot_col = robot_info.col
         val: int = 0
         d_options: list = []
         for d in Direction:
-            if self.game_state.can_move_robot(rname, d) and self.game_state.get_map()[robot_row + d.value[0]][robot_col + d.value[1]].robot is None:
+            if self.game_state.can_move_robot(rname, d) and self.tiles[robot_row + d.value[0]][robot_col + d.value[1]].robot is None:
                 cur: int = self.get_explorable_tiles(robot_row + d.value[0], robot_col + d.value[1])
                 if cur > val:
                     val = cur
@@ -141,11 +142,13 @@ class BotPlayer(Player):
                 self.game_state.move_robot(rname, d_move)
                 if self.game_state.can_robot_action(rname):
                     self.game_state.robot_action(rname)
+                return d_move
+        return None
 
     def explore_action(self) -> None:
         '''Perform one move/action sequence for each of the explore/terraform pairs'''
         for exp, ter in self.et_pairs:
-            # print(f'et pair: {exp, ter}')
+            print(f'et pair: {exp, ter}')
             if exp.battery == 0:
                 # Recharge sequence
                 # print('Recharge')
@@ -156,21 +159,20 @@ class BotPlayer(Player):
                         self.game_state.move_robot(ter.name, d)
                         if self.game_state.can_robot_action(ter.name):
                             self.game_state.robot_action(ter.name)
-                        self.game_state.move_robot(exp.name, Direction((ter.row - exp.row, ter.col - exp.col))) # Check this lol
+                        self.game_state.move_robot(exp.name, d) # Check this lol
                         break
 
             else:
                 # Explore sequence
                 # print('Explore')
-                old_exp_row, old_exp_col = (exp.row, exp.col)
-                self.explore_next(exp.name, exp)
+                d = self.explore_next(exp.name, exp)
 
-                # Move Terraformer to the previous location of the explorer
-                d = Direction((old_exp_row - ter.row, old_exp_col - ter.col))
-                if self.game_state.can_move_robot(ter.name, d) and self.game_state.get_map()[old_exp_row][old_exp_col].robot is None:
-                    self.game_state.move_robot(ter.name, d)
-                if self.game_state.can_robot_action(ter.name):
-                    self.game_state.robot_action(ter.name)
+                if d != None:
+                    # Move Terraformer to the previous location of the explorer
+                    if self.game_state.can_move_robot(ter.name, d) and self.game_state.get_map()[ter.row + d.value[0]][ter.col + d.value[1]].robot is None:
+                        self.game_state.move_robot(ter.name, d)
+                    if self.game_state.can_robot_action(ter.name):
+                        self.game_state.robot_action(ter.name)
 
     def exploration_phase(self, to_spawn=False):
         # Refresh RobotInfo objects in et_pairs.
@@ -180,6 +182,8 @@ class BotPlayer(Player):
         for exp, ter in self.et_pairs:
             if exp.name in robots and ter.name in robots:
                 updated_et_pairs.append((robots[exp.name], robots[ter.name]))
+            else:
+                self.exp_terras.remove(ter.name)
         self.et_pairs = updated_et_pairs
 
         # print(self.ally_tiles)
@@ -207,6 +211,7 @@ class BotPlayer(Player):
                     new_ter = self.game_state.spawn_robot(RobotType.TERRAFORMER, exp.row, exp.col)
                     self.construct_state = 0
                     self.et_pairs.append((exp, new_ter))
+                    self.exp_terras.add(new_ter.name)
 
                 # print(self.et_pairs)
             
@@ -338,7 +343,7 @@ class BotPlayer(Player):
 
                 if game_state.can_spawn_robot(RobotType.MINER, row, col):
                     new_miner = game_state.spawn_robot(RobotType.MINER, row, col)
-                    self.mining_assignment[mining_coordinates].miners.append(new_miner.name)
+                    self.mining_assigntment[mining_coordinates].miners.append(new_miner.name)
                     # print(f'{row, col} mining at {mining_coordinates}')
                     # print(self.assigned_mines)
                     
@@ -357,24 +362,40 @@ class BotPlayer(Player):
 
 
     # Terraforming stuff
+    def get_terraformable_tiles(self, row, col) -> int:
+        val: int = 0
+        for d in Direction:
+            tile_info = self.get_tile_info(row + d.value[0], col + d.value[1])
+            if tile_info.state != TileState.ILLEGAL:
+                val += (10 - tile_info.terraform)
+            if tile_info.state == TileState.ILLEGAL:
+                val += 20
+        return val
+
     def terraforming_phase2(self):
-        ginfo = self.ginfo
-        height, width = self.height, self.width
+        ginfo = self.game_state.get_info()
+        height, width = len(ginfo.map), len(ginfo.map[0])
         # Move and action the current terraform robots
-        robots = self.robots
+        robots = self.game_state.get_ally_robots()
 
         # Move and Action
         print("TERRA: FIND A DIRECTION TO MOVE")
+        move_budget = 10
         for rname, rob in robots.items():
             if rob.type == RobotType.TERRAFORMER:
-
                 move_dir = None
                 potential_dir = []
+                val = 0
                 #aggressive_dir = None
                 for dir in Direction:
                     loc = (rob.row + dir.value[0], rob.col + dir.value[1])
                     if self.game_state.can_move_robot(rname, dir) and self.no_allied_collision(*loc) and loc not in self.assigned_mines and loc not in self.assigned_terra:
-                        potential_dir.append(dir)
+                        cur = self.get_terraformable_tiles(*loc)
+                        if(cur > val):
+                            potential_dir = []
+                            potential_dir.append(dir)
+                        if(cur == val):
+                            potential_dir.append(dir)
                         #if ginfo.map[loc[0]][loc[1]].robot is not None and ginfo.map[loc[0]][loc[1]].robot != self.team:
                             #aggressive_dir = dir
                             #An opportunity to write ADVERSERIAL CODE!!
@@ -391,11 +412,23 @@ class BotPlayer(Player):
                     self.game_state.robot_action(rname)
 
         # Spawn new terra formers.
+        print("TERRA: Find Allied Tiles")
+        ally_tiles = []
+        for row in range(height):
+            for col in range(width):
+                # get the tile at (row, col)
+                tile = ginfo.map[row][col]
+                # skip fogged tiles
+                if tile is not None:  # ignore fogged tiles
+                    if tile.robot is None:  # ignore occupied tiles
+                        if tile.terraform > 0:  # ensure tile is ally-terraformed
+                            ally_tiles += [tile]
+
         print("TERRA: Pick a random allied tile")
         # pick a several random ally tiles to spawn on, while we have the budget to do so
-        if len(self.ally_tiles) > 0:
+        if len(ally_tiles) > 0:
             num_new_bots = int(ginfo.metal * 0.8 / GameConstants.ROBOT_SPAWN_COST)
-            spawn_locs = random.sample(self.ally_tiles, num_new_bots)
+            spawn_locs = random.sample(ally_tiles, num_new_bots)
             for spawn_loc in spawn_locs:
                 # spawn the robot
                 # check if we can spawn here (checks if we can afford, tile is empty, and tile is ours)
