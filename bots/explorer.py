@@ -15,35 +15,74 @@ class BotPlayer(Player):
         self.team = team
         self.game_state : GameState = None
         self.game_info : GameInfo = None
+        self.initial_setup = False
         self.width : int = 0
         self.height : int = 0
+        self.et_pairs : list[tuple[RobotInfo, RobotInfo]] = []
+        self.construct_state = 0
+
+        # Exploration stuff
+        self.default_explore_val = 10
+        self.default_explore_threshold = 50
+        self.explore_prio = []
+        
+        # Charging stuff
+        self.ally_tiles = set()
+        self.ally_distance = []
+        self.ally_distance_vis = set()
+
         return
 
-    def get_tile_style(self, row, col) -> TileInfo :
-        if row < 0 : return TileInfo(TileState.ILLEGAL, 0, 0, 0, 0, None)
-        if row >= self.width : return TileInfo(TileState.ILLEGAL, 0, 0, 0, 0, None)
-        if col < 0 : return TileInfo(TileState.ILLEGAL, 0, 0, 0, 0, None)
-        if col >= self.height : return TileInfo(TileState.ILLEGAL, 0, 0, 0, 0, None)
+    def get_tile_info(self, row, col) -> TileInfo :
+        if row < 0 : return TileInfo(TileState.IMPASSABLE, 0, 0, 0, 0, None)
+        if row >= self.width : return TileInfo(TileState.IMPASSABLE, 0, 0, 0, 0, None)
+        if col < 0 : return TileInfo(TileState.IMPASSABLE, 0, 0, 0, 0, None)
+        if col >= self.height : return TileInfo(TileState.IMPASSABLE, 0, 0, 0, 0, None)
+        if self.tiles[row][col] == None: return TileInfo(TileState.ILLEGAL, 0, 0, 0, 0, None)
         return self.tiles[row][col]
 
     def update_cache(self):
         '''Update global variables to save data'''
         self.game_info = self.game_state.get_info()
+        self.tiles = self.game_info.map
+
+
+    def initial_cache(self):
+        '''Varianles that need to be updated one time'''
+        if self.initial_setup: return
+        self.initial_setup = True
+
         self.height = len(self.game_info.map)
         self.width = len(self.game_info.map[0])
         self.total_tiles = self.height * self.width
-        self.tiles = self.game_info.map
 
         # Stuff for exploration bot
-        self.explore_prio = []
         for row in range(self.height):
             row_prio = []
             for col in range(self.width):
                 row_prio.append(0.0)
             self.explore_prio.append(row_prio)
+        
+        for row in range(self.height):
+            for col in range(self.width):
+                # get the tile at (row, col)
+                tile = self.game_info.map[row][col]
+                # skip fogged tiles
+                if tile is not None: # ignore fogged tiles
+                    if tile.terraform > 0: # ensure tile is ally-terraformed
+                        self.ally_tiles.add(tile)
+
+        for row in range(self.height):
+            row_ally_dist = []
+            for col in range(self.width):
+                row_ally_dist.append(None)
+            self.ally_distance.append(row_ally_dist)
+
+        for tile in self.ally_tiles:
+            self.ally_bfs(tile.row, tile.col)
 
     def unexplored_bfs(self, row, col, threshold):
-        if self.tiles[row][col] != None:
+        if self.get_tile_info(row,col) != TileInfo.ILLEGAL:
             return None
         retList = []
         vis = {(row,col)}
@@ -57,33 +96,95 @@ class BotPlayer(Player):
                 nr, nc = qr + d.value[0], qc + d.value[1]
                 if vis.__contains__((nr,nc)):
                     continue
-                if self.get_tile_style(nr,nc).state == TileState.ILLEGAL:
+                if self.get_tile_info(nr,nc).state == TileState.ILLEGAL:
                     queue.append((nr,nc,m+1))
                     vis.add((nr,nc))
         return retList
-        
+
+    def ally_bfs(self, row, col):
+        tile_info = self.get_tile_info(row,col)
+        if tile_info.state == TileState.ILLEGAL or tile_info.state == TileState.IMPASSABLE:
+            return None
+        if tile_info.terraform > 0:
+            self.ally_distance[row][col] = (0,row,col)
+        else:
+            return None
+
+        vis = {(row,col)}
+        queue = deque((row, col, 0))
+        while(queue):
+            qr, qc, m = queue.popleft()
+            for d in Direction:
+                nr, nc = qr + d.value[0], qc + d.value[1]
+                state = self.get_tile_info(nr,nc).state
+                if vis.__contains__((nr,nc)) or state == TileState.ILLEGAL or state == TileState.IMPASSABLE:
+                    continue
+                if(m+1 == self.ally_distance[nr][nc][0]):
+                    continue
+                queue.append((nr,nc,m+1))
+                vis.add((nr,nc))
+                self.ally_distance[qr][qc] = (m+1,row,col)
+
+    def update_ally_distance(self, row, col):
+        tile_info = self.get_tile_info(row,col)
+        if tile_info.state == TileState.ILLEGAL or tile_info.state == TileState.IMPASSABLE:
+            return None
+        if self.ally_distance[row][col] != None:
+            _, ar, ac = self.ally_distance[row][col]
+            if self.tiles[ar][ac].terraform > 0:
+                return self.ally_distance[row][col]
+        self.ally_distance_vis.clear()
+        self.ally_distance_vis.add((row,col))
+        self.ally_distance[row][col] = (100000,-1,-1)
+        for d in Direction:
+            nr, nc = row + d.value[0], col + d.value[1]
+            state = self.get_tile_info(nr,nc).state
+            if vis.__contains__((nr,nc)) or state == TileState.ILLEGAL or state == TileState.IMPASSABLE:
+                continue
+            if self.update_ally_distance(nr,nc):
+                continue
+            m,ar,ac = self.update_ally_distance(nr,nc)
+            if m + 1 < self.ally_distance[row][col] :
+                self.ally_distance[row][col] = (m+1,ar,ac)
+        if self.ally_distance[row][col][0] == 100000:
+            self.ally_distance[row][col] = None
+        return self.ally_distance[row][col]
 
     def add_prio(self, row, col, val):
-        ratio = 0.5
-        dist = 5
+        ratio = 0.9
+        dist = 12
         updates = self.unexplored_bfs(row, col, dist)
         for cur in updates:
             r, c, d = cur
             self.explore_prio[r][c] += val * pow(ratio, d)
-                
+
+    def explore_score(self, row, col):
+        return self.explore_prio[row][col]
+
+    def explore_strategy(self, threshold):
+        pos_to_explore = []
+        for row in range(self.height):
+            for col in range(self.width):
+                score = self.explore_score(row,col)
+                if score > threshold:
+                    pos_to_explore.append((score,row, col))
+        pos_to_explore.sort()
+        pos_to_explore.reverse()
+        for ps,pr,pc in pos_to_explore:
+            self.request_explore(pr,pc)
+            self.add_prio(pr,pc,-self.default_explore_val)
 
     def get_explorable_tiles(self, row, col) -> int:
         val : int = 0
         for d in Direction:
-            if self.isvalid(row + d.value[0], col + d.value[1]):
-                tile_info : TileInfo = self.game_info.map[row + d.value[0]][col + d.value[1]]
-                if tile_info.state == TileState.ILLEGAL:
-                    val += 1
+            tile_info = self.get_tile_info(row + d.value[0], col + d.value[1])
+            if tile_info.state == TileState.ILLEGAL:
+                val += 1
         return val
 
-    def explore_next(self, rname : str, robot : Robot) -> Direction:
-        '''Perform the best move action for an explorer'''
-        robot_info : RobotInfo = robot.info()
+    def explore_alone(self, rname : str, robot_info : RobotInfo) -> None:
+        '''Alone Exploration Code'''
+        rr = robot_info.row
         robot_row = robot_info.row
         robot_col = robot_info.col
         val : int = 0
@@ -103,6 +204,40 @@ class BotPlayer(Player):
         self.game_state.move_robot(rname, d_move)
         if self.game_state.can_robot_action(rname):
             self.game_state.robot_action(rname)
+            for d in Direction:
+                nr, nc = robot_row + d.value[0], robot_col + d.value[1]
+                if self.get_tile_info(nr,nc).state == TileState.ILLEGAL:
+                    self.add_prio(nr,nc,self.default_explore_val)
+                    self.explore_prio[nr][nc] = 0
+                    self.update_ally_distance(nr,nc)
+
+    def explore_pair(self, rname : str, robot_info : RobotInfo) -> None:
+        '''Perform the best move action for an explorer'''
+        robot_row = robot_info.row
+        robot_col = robot_info.col
+        val : int = 0
+        d_options : list = []
+        for d in Direction:
+            if self.game_state.can_move_robot(rname, d):
+                cur : int = self.get_explorable_tiles(robot_row + d.value[0], robot_col + d.value[1])
+                if cur > val and self.game_state.get_map()[robot_row+d.value[0]][robot_col+d.value[1]].robot is None:
+                    val = cur
+                    d_options = []
+                    d_options.append(d)
+                    continue
+                if cur == val and self.game_state.get_map()[robot_row+d.value[0]][robot_col+d.value[1]].robot is None:
+                    d_options.append(d)
+                    continue
+        d_move = random.choice(d_options)
+        self.game_state.move_robot(rname, d_move)
+        if self.game_state.can_robot_action(rname):
+            self.game_state.robot_action(rname)
+            for d in Direction:
+                nr, nc = robot_row + d.value[0], robot_col + d.value[1]
+                if self.get_tile_info(nr,nc).state == TileState.ILLEGAL:
+                    self.add_prio(nr,nc,self.default_explore_val)
+                    self.explore_prio[nr][nc] = 0
+
 
     def explore_action(self, game_state: GameState) -> None:
         '''Perform one move/action sequence for each of the explore/terraform pairs'''
@@ -139,16 +274,6 @@ class BotPlayer(Player):
         print("Map height", self.height)
         print("Map width", self.width)
 
-        ally_tiles = []
-        for row in range(self.height):
-            for col in range(self.width):
-                # get the tile at (row, col)
-                tile = self.game_info.map[row][col]
-                # skip fogged tiles
-                if tile is not None: # ignore fogged tiles
-                    if tile.robot is None: # ignore occupied tiles
-                        if tile.terraform > 0: # ensure tile is ally-terraformed
-                            ally_tiles += [tile]
 
         print(f"My metal {game_state.get_metal()}")
         robots = game_state.get_ally_robots()
@@ -160,7 +285,7 @@ class BotPlayer(Player):
             self.et_pairs[i] = (robots[exp.name], robots[ter.name])
 
         if self.construct_state == 0:
-            for spawn_loc in ally_tiles:
+            for spawn_loc in self.ally_tiles:
                 if self.construct_state > 0:
                     break
                 spawn_type = RobotType.EXPLORER
