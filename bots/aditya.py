@@ -1,4 +1,4 @@
-def sorted_mines(self, map):
+def sorted_mines(map):
     """ Input is map object list(list[TileInfo]) """
     height, width = len(map), len(map[0])
     mines = []
@@ -10,7 +10,7 @@ def sorted_mines(self, map):
     # mines is sorted in decreasing order of capacity
     return mines
 
-def first_decision(self, map):
+def first_decision(map):
     """ Decide how many miners to start with, and where to place them.
      Returns list of dictionaries, sorted by capacity """
     height, width = len(map), len(map[0])
