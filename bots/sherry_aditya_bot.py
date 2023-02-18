@@ -8,13 +8,14 @@ from src.map import TileInfo, RobotInfo
 import random
 
 class Mining_Logistics:
-  def __init__(self, coordinates, direction=None, robots=[]):
-    self.mining_coordinates = coordinates
-    self.miners = robots # should just be a list of names
-    self.mine2tt = direction # Vector mining location --> terraforming tile direction
+    def __init__(self, coordinates, direction=None, robots=[]):
+        self.mining_coordinates = coordinates
+        self.miners = robots  # should just be a list of names
+        self.mine2tt = direction  # Vector mining location --> terraforming tile direction
 
-    self.tt2mine = (-1 * self.mine2tt[0], -1* self.mine2tt[1])
-    self.tt_coordinates = (self.mining_coordinates[0] - self.mine2tt[0], self.mining_coordinates[1] - self.mine2tt[1])
+        self.tt2mine = (-1 * self.mine2tt[0], -1 * self.mine2tt[1])
+        self.tt_coordinates = (
+        self.mining_coordinates[0] - self.mine2tt[0], self.mining_coordinates[1] - self.mine2tt[1])
 
 class BotPlayer(Player):
     """
@@ -96,6 +97,7 @@ class BotPlayer(Player):
                 self.mining_assignment[mining_location].miners.append(new_miner)
             else:
                 unfinished_mines.append((mining_location, mine2tt))
+                print("Couldn't spawn at " + str(mining_location))
 
         return unfinished_mines
 

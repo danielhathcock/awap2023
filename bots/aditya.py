@@ -2,7 +2,6 @@ from src.game_constants import RobotType, Direction, Team, TileState, GameConsta
 from src.game_state import GameState, GameInfo
 from src.player import Player
 from src.map import TileInfo, RobotInfo
-import random
 
 def sorted_mines(map):
     """ Input is map object list(list[TileInfo]) """
