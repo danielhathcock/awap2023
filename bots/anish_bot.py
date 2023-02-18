@@ -22,7 +22,7 @@ class BotPlayer(Player):
     def __init__(self, team: Team):
         self.team = team
         self.game_state : GameState = None
-        self.game_info : GameInfo = None
+        self.ginfo : GameInfo = None
         self.initial_setup = False
         self.width : int = 0
         self.height : int = 0
@@ -40,9 +40,9 @@ class BotPlayer(Player):
     # Precomputations and runtime updates
     def update_vars(self):
         '''Update global variables to save data'''
-        self.game_info = self.game_state.get_info()
-        self.tiles = self.game_info.map
-        self.metal = self.game_info.metalt 
+        self.ginfo = self.game_state.get_info()
+        self.tiles = self.ginfo.map
+        self.metal = self.ginfo.metal
 
 
     def init_vars(self):
@@ -50,8 +50,8 @@ class BotPlayer(Player):
         if self.initial_setup: return
         self.initial_setup = True
 
-        self.height = len(self.game_info.map)
-        self.width = len(self.game_info.map[0])
+        self.height = len(self.ginfo.map)
+        self.width = len(self.ginfo.map[0])
         self.total_tiles = self.height * self.width
 
     # Helper functions
@@ -91,7 +91,7 @@ class BotPlayer(Player):
         self.init_vars()
 
         # print info about the game
-        print(f"Turn {self.game_info.turn}, team {self.game_info.team}")
+        print(f"Turn {self.ginfo.turn}, team {self.ginfo.team}")
         print("Map height", self.height)
         print("Map width", self.width)
 
