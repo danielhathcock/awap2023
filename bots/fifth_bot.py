@@ -8,7 +8,6 @@ from src.player import Player
 from src.map import TileInfo, RobotInfo
 from src.robot import Robot
 
-
 class SpawnRequest:
     def __init__(self, status):
         self.name = None
@@ -56,6 +55,7 @@ class BotPlayer(Player):
 
         # exploring stuff
         self.et_pairs: list[tuple[RobotInfo, RobotInfo]] = []
+        self.exp_terras = set()
         self.construct_state = 0
         self.new_exp = None
 
@@ -73,7 +73,7 @@ class BotPlayer(Player):
     def update_vars(self):
         '''Update global variables to save data'''
         self.ginfo = self.game_state.get_info()
-        self.tiles = self.ginfo.map
+        self.tiles = self.game_state.get_map()
         self.metal = self.ginfo.metal
         self.robots = self.game_state.get_ally_robots()
 
@@ -109,6 +109,11 @@ class BotPlayer(Player):
         if self.tiles[row][col] == None: return TileInfo(TileState.ILLEGAL, 0, 0, 0, 0, None)
         return self.tiles[row][col]
 
+
+
+
+
+
     # Exploration
     def get_explorable_tiles(self, row, col) -> int:
         val: int = 0
@@ -141,6 +146,40 @@ class BotPlayer(Player):
                 self.game_state.move_robot(rname, d_move)
                 if self.game_state.can_robot_action(rname):
                     self.game_state.robot_action(rname)
+                return True
+        return False
+
+    def get_number_unexplored(self, row, col, threshold):
+        if self.get_tile_info(row,col).terraform < 1:
+            return 0
+        ret = 0
+        vis = {(row,col)}
+        queue = deque((row, col, 0))
+        while(queue):
+            qr, qc, m = queue.popleft()
+            if(m == threshold):
+                continue
+            for d in Direction:
+                nr, nc = qr + d.value[0], qc + d.value[1]
+                if vis.__contains__((nr,nc)):
+                    continue
+                if self.get_tile_info(nr,nc).state != TileState.IMPASSABLE:
+                    queue.append((nr,nc,m+1))
+                    vis.add((nr,nc))
+                if self.get_tile_info_info(nr,nc).state == TileState.ILLEGAL:
+                    ret += 1
+        return ret
+
+    def get_explorer_spwan_location(self, threshold):
+        self.tiles = self.game_state.get_map()
+        retlist = []
+        for row in self.height:
+            for col in self.width:
+                retlist.append(self.get_number_unexplored(row,col, threshold))
+        retlist.sort()
+        retlist.reverse()
+        retlist = retlist[0:min(20,len(retlist))]
+        return random.sample(retlist,5)
 
     def explore_action(self) -> None:
         '''Perform one move/action sequence for each of the explore/terraform pairs'''
@@ -163,14 +202,15 @@ class BotPlayer(Player):
                 # Explore sequence
                 # print('Explore')
                 old_exp_row, old_exp_col = (exp.row, exp.col)
-                self.explore_next(exp.name, exp)
+                moved = self.explore_next(exp.name, exp)
 
-                # Move Terraformer to the previous location of the explorer
-                d = Direction((old_exp_row - ter.row, old_exp_col - ter.col))
-                if self.game_state.can_move_robot(ter.name, d) and self.game_state.get_map()[old_exp_row][old_exp_col].robot is None:
-                    self.game_state.move_robot(ter.name, d)
-                if self.game_state.can_robot_action(ter.name):
-                    self.game_state.robot_action(ter.name)
+                if moved:
+                    # Move Terraformer to the previous location of the explorer
+                    d = Direction((old_exp_row - ter.row, old_exp_col - ter.col))
+                    if self.game_state.can_move_robot(ter.name, d) and self.game_state.get_map()[old_exp_row][old_exp_col].robot is None:
+                        self.game_state.move_robot(ter.name, d)
+                    if self.game_state.can_robot_action(ter.name):
+                        self.game_state.robot_action(ter.name)
 
     def exploration_phase(self, to_spawn=False):
         # Refresh RobotInfo objects in et_pairs.
@@ -180,13 +220,15 @@ class BotPlayer(Player):
         for exp, ter in self.et_pairs:
             if exp.name in robots and ter.name in robots:
                 updated_et_pairs.append((robots[exp.name], robots[ter.name]))
+            else:
+                self.exp_terras.remove(ter.name)
         self.et_pairs = updated_et_pairs
 
         # print(self.ally_tiles)
         # print('Explore action:')
         self.explore_action()
 
-        if to_spawn:
+        if len(self.et_pairs) < 3:
             # print('spawn?')
             if self.construct_state == 0 and self.game_state.get_metal() >= 100:
                 for spawn_loc in self.ally_tiles:
@@ -207,6 +249,7 @@ class BotPlayer(Player):
                     new_ter = self.game_state.spawn_robot(RobotType.TERRAFORMER, exp.row, exp.col)
                     self.construct_state = 0
                     self.et_pairs.append((exp, new_ter))
+                    self.exp_terras.add(new_ter.name)
 
                 # print(self.et_pairs)
             
@@ -227,6 +270,15 @@ class BotPlayer(Player):
     def no_allied_collision(self, row, col):
         tile = self.game_state.get_map()[row][col]
         return tile.robot is None or tile.robot.team != self.team
+
+    def fast_no_allied_collision(self, row, col):
+        tile = self.tiles[row][col]
+        return tile.robot is None or tile.robot.team != self.team
+
+    def move_wrapper(self, robot, direction):
+        self.tiles[robot.row][robot.col].robot = None
+        self.game_state.move_robot(robot.name, direction)
+        self.tiles[robot.row + direction.value[0]][robot.col + direction.value[1]].robot = robot
 
 
     def next_decision(self, map):
@@ -288,8 +340,8 @@ class BotPlayer(Player):
                     # Try to rebuild our miner!!
                     row, col = logistics.tt_coordinates
                     if game_state.get_map()[row][col].terraform > 0:
-                        if game_state.can_spawn_robot(RobotType.TERRAFORMER, row, col):
-                            new_rob = game_state.spawn_robot(RobotType.TERRAFORMER, row, col)
+                        if game_state.can_spawn_robot(RobotType.MINER, row, col):
+                            new_rob = game_state.spawn_robot(RobotType.MINER, row, col)
                             logistics.miners = [new_rob.name]
                     else:
                         # Kill this logistics object
@@ -353,28 +405,64 @@ class BotPlayer(Player):
 
 
 
-
-
+    def spawn_spam_phase(self):
+        ginfo = self.game_state.get_info()
+        height, width = len(ginfo.map), len(ginfo.map[0])
+        ally_tiles = []
+        for row in range(height):
+            for col in range(width):
+                tile = ginfo.map[row][col]
+                if tile and tile.terraform > 0 and tile.robot is None:
+                    ally_tiles.append(tile)
+        ally_tiles.sort(key = lambda x: x.terraform)
+        for tile in ally_tiles:
+            if self.game_state.can_spawn_robot(RobotType.TERRAFORMER, tile.row, tile.col):
+                self.game_state.spawn_robot(RobotType.TERRAFORMER, tile.row, tile.col)
+            
 
     # Terraforming stuff
-    def terraforming_phase2(self):
-        ginfo = self.ginfo
-        height, width = self.height, self.width
-        # Move and action the current terraform robots
-        robots = self.robots
+    def get_terraformable_tiles(self, row, col) -> int:
+        val: int = 0
+        for d in Direction:
+            tile_info = self.get_tile_info(row + d.value[0], col + d.value[1])
+            if tile_info.state != TileState.ILLEGAL:
+                val += (10 - tile_info.terraform)
+            if tile_info.state == TileState.ILLEGAL:
+                val += 20
+        return val
 
+
+    def terraforming_phase2(self):
+        ginfo = self.game_state.get_info()
+        height, width = len(ginfo.map), len(ginfo.map[0])
+        # Move and action the current terraform robots
+        robots = self.game_state.get_ally_robots()
+
+
+        
         # Move and Action
         print("TERRA: FIND A DIRECTION TO MOVE")
+        count = 0
         for rname, rob in robots.items():
-            if rob.type == RobotType.TERRAFORMER:
-
+            if rob.type == RobotType.TERRAFORMER and rob.name not in self.exp_terras:
+                count += 1
                 move_dir = None
                 potential_dir = []
                 #aggressive_dir = None
+                val = 0
                 for dir in Direction:
                     loc = (rob.row + dir.value[0], rob.col + dir.value[1])
-                    if self.game_state.can_move_robot(rname, dir) and self.no_allied_collision(*loc) and loc not in self.assigned_mines and loc not in self.assigned_terra:
-                        potential_dir.append(dir)
+                    if self.game_state.can_move_robot(rname, dir) and self.fast_no_allied_collision(*loc) and loc not in self.assigned_mines and loc not in self.assigned_terra:
+                        cur = self.get_terraformable_tiles(*loc)
+                        if(cur > val):
+                            potential_dir = []
+                            potential_dir.append(dir)
+                        if(cur == val):
+                            potential_dir.append(dir)
+                # for dir in Direction:
+                #     loc = (rob.row + dir.value[0], rob.col + dir.value[1])
+                #     if self.game_state.can_move_robot(rname, dir) and loc not in self.assigned_mines and loc not in self.assigned_terra and self.no_allied_collision(*loc):
+                #         potential_dir.append(dir)
                         #if ginfo.map[loc[0]][loc[1]].robot is not None and ginfo.map[loc[0]][loc[1]].robot != self.team:
                             #aggressive_dir = dir
                             #An opportunity to write ADVERSERIAL CODE!!
@@ -385,17 +473,30 @@ class BotPlayer(Player):
                     move_dir = random.choice(potential_dir)
 
                 if move_dir is not None:
-                    self.game_state.move_robot(rname, move_dir)
+                    self.move_wrapper(rob, move_dir)
                 #action
                 if self.game_state.can_robot_action(rname):
                     self.game_state.robot_action(rname)
 
+        print(count)
         # Spawn new terra formers.
+        print("TERRA: Find Allied Tiles")
+        ally_tiles = []
+        for row in range(height):
+            for col in range(width):
+                # get the tile at (row, col)
+                tile = ginfo.map[row][col]
+                # skip fogged tiles
+                if tile is not None:  # ignore fogged tiles
+                    if tile.robot is None:  # ignore occupied tiles
+                        if tile.terraform > 0:  # ensure tile is ally-terraformed
+                            ally_tiles += [tile]
+
         print("TERRA: Pick a random allied tile")
         # pick a several random ally tiles to spawn on, while we have the budget to do so
-        if len(self.ally_tiles) > 0:
-            num_new_bots = int(ginfo.metal * 0.8 / GameConstants.ROBOT_SPAWN_COST)
-            spawn_locs = random.sample(self.ally_tiles, num_new_bots)
+        if len(ally_tiles) > 0:
+            num_new_bots = min(int(ginfo.metal * 0.8 / GameConstants.ROBOT_SPAWN_COST), len(ally_tiles))
+            spawn_locs = random.sample(ally_tiles, num_new_bots)
             for spawn_loc in spawn_locs:
                 # spawn the robot
                 # check if we can spawn here (checks if we can afford, tile is empty, and tile is ours)
@@ -408,6 +509,10 @@ class BotPlayer(Player):
     def play_turn(self, game_state: GameState) -> None:
         # get info
         self.game_state = game_state
+
+        if game_state.get_time_left() < 2.5:
+            return
+
         self.init_vars()
         self.update_vars()
 
@@ -418,7 +523,7 @@ class BotPlayer(Player):
         # print(f"My metal {game_state.get_metal()}")
         # Extract information
 
-        if self.ginfo.turn <= 20:
+        if self.ginfo.turn <= min(self.height // 2, 20):
             self.exploration_phase(to_spawn=True)
         else:
             print('Begin explore phase')
@@ -429,6 +534,7 @@ class BotPlayer(Player):
             except KeyError:
                 print('yo yo yo')
             print('End mine, begin terra')
+            self.update_vars()
             self.terraforming_phase2()
             print('End terra')
         if self.ginfo.turn == 200:
