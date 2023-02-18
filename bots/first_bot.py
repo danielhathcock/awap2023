@@ -44,7 +44,7 @@ class BotPlayer(Player):
         self.metal : int = 0
 
         self.robots = None
-        self.ally_tiles = set()
+        self.ally_tiles = []
 
         # Spawning stuff
         self.spawn_queue = set()
@@ -72,6 +72,15 @@ class BotPlayer(Player):
         self.metal = self.ginfo.metal
         self.robots = self.game_state.get_ally_robots()
 
+        for row in range(self.height):
+            for col in range(self.width):
+                # get the tile at (row, col)
+                tile = self.tiles[row][col]
+                # skip fogged tiles
+                if tile is not None: # ignore fogged tiles
+                    if tile.terraform > 0 : # ensure tile is ally-terraformed
+                        self.ally_tiles += [tile]
+
 
     def init_vars(self):
         '''Varianles that need to be updated one time'''
@@ -82,14 +91,6 @@ class BotPlayer(Player):
         self.width = len(self.ginfo.map[0])
         self.total_tiles = self.height * self.width
 
-        for row in range(self.height):
-            for col in range(self.width):
-                # get the tile at (row, col)
-                tile = self.ginfo.map[row][col]
-                # skip fogged tiles
-                if tile is not None: # ignore fogged tiles
-                    if tile.terraform > 0: # ensure tile is ally-terraformed
-                        self.ally_tiles.add(tile)
 
     # Helper functions
     def get_tile_info(self, row, col) -> TileInfo :
@@ -120,6 +121,14 @@ class BotPlayer(Player):
                 self.metal -= 50
 
     # Exploration
+    def get_explorable_tiles(self, row, col) -> int:
+        val : int = 0
+        for d in Direction:
+            tile_info = self.get_tile_info(row + d.value[0], col + d.value[1])
+            if tile_info.state == TileState.ILLEGAL:
+                val += 1
+        return val
+
     def explore_next(self, rname : str, robot_info : RobotInfo) -> None:
         '''Perform the best move action for an explorer'''
         robot_row = robot_info.row
@@ -172,6 +181,14 @@ class BotPlayer(Player):
                     self.game_state.robot_action(ter.name)   
 
     def exploration_phase(self):
+        # Refresh RobotInfo objects in et_pairs.
+        # TODO: check if any of our robots in here were destroyed
+        for i in range(len(self.et_pairs)):
+            exp, ter = self.et_pairs[i]
+            self.et_pairs[i] = (self.robots[exp.name], self.robots[ter.name])
+
+        print(self.ally_tiles)
+
         if self.construct_state == 0:
             for spawn_loc in self.ally_tiles:
                 if self.construct_state > 0:
@@ -469,46 +486,17 @@ class BotPlayer(Player):
         print(f"Turn {self.ginfo.turn}, team {self.ginfo.team}")
         print("Map height", self.height)
         print("Map width", self.width)
-
-
         print(f"My metal {game_state.get_metal()}")
         # Extract information
 
-        # Refresh RobotInfo objects in et_pairs.
-        # TODO: check if any of our robots in here were destroyed
-        for i in range(len(self.et_pairs)):
-            exp, ter = self.et_pairs[i]
-            self.et_pairs[i] = (self.robots[exp.name], self.robots[ter.name])
-
-        if self.ginfo.turn <= 2:
+        if self.ginfo.turn <= 5:
+            self.exploration_phase()
+        elif self.ginfo.turn <= 7:
             self.initial_two_turns(game_state)
-
-        if self.construct_state == 0:
-            for spawn_loc in self.ally_tiles:
-                if self.construct_state > 0:
-                    break
-                spawn_type = RobotType.EXPLORER
-                if game_state.can_spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col):
-                    game_state.spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col)
-                    self.construct_state = 1
-
-        elif self.construct_state == 1:
-            exp_name, exp = list(robots.items())[0]
-            self.explore_next(exp_name, exp)
-
-            if game_state.can_spawn_robot(RobotType.TERRAFORMER, exp.row, exp.col):
-                new_ter = game_state.spawn_robot(RobotType.TERRAFORMER, exp.row, exp.col)
-                self.construct_state = 2
-                self.et_pairs.append((exp, new_ter))
-
-            print(self.et_pairs)
-        else:
-            self.explore_action(game_state)
-
-        if self.ginfo.turn <= 2:
-            self.initial_two_turns(game_state)
+            self.exploration_phase()
         else:
             self.general_mining_turn(game_state)
+            self.exploration_phase()
             self.terraforming_phase()
         if self.ginfo.turn == 200:
             print(len(self.ginfo.ally_robots))
