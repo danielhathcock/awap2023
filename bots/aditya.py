@@ -13,7 +13,7 @@ def sorted_mines(map):
         for tile in row:
             if tile.state == TileState.TERRAFORMABLE:
                 mines.append(tile)
-    mines.sort(key = x: - x.mining)
+    mines.sort(key = lambda x: - x.mining)
     # mines is sorted in decreasing order of capacity
     return mines
 
