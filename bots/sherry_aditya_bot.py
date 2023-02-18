@@ -3,7 +3,7 @@ from typing import List, Tuple, Any
 from src.game_constants import RobotType, Direction, Team, TileState, GameConstants
 from src.game_state import GameState, GameInfo
 from src.player import Player
-from aditya import *
+from bots.aditya import *
 from src.map import TileInfo, RobotInfo
 import random
 

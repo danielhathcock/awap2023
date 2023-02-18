@@ -1,10 +1,16 @@
+from src.game_constants import RobotType, Direction, Team, TileState, GameConstants
+from src.game_state import GameState, GameInfo
+from src.player import Player
+from src.map import TileInfo, RobotInfo
+import random
+
 def sorted_mines(map):
     """ Input is map object list(list[TileInfo]) """
     height, width = len(map), len(map[0])
     mines = []
     for row in map:
         for tile in row:
-            if tile.state == TileState.TERRAFORMABLE:
+            if tile and tile.state == TileState.TERRAFORMABLE:
                 mines.append(tile)
     mines.sort(key = lambda x: - x.mining)
     # mines is sorted in decreasing order of capacity
@@ -17,16 +23,16 @@ def first_decision(map):
     gmt = 15    #Good Mine Threshold
     def get_terra_tile(mine):
         """ Returns a dictionary with keys (tt, td) = (adjacent terra tile, directions FROM the terra tile) """
-        x, y = mine.row, mine.column
+        x, y = mine.row, mine.col
         D = {}
         for t in Direction:
-            p, q = t.value()
+            p, q = t.value
             nx, ny = x - p , y - q
-            if 0 <= nx < height and 0 <= ny < width and map[nx][ny].state == TileState.TERRAFORMABLE:
+            if 0 <= nx < height and 0 <= ny < width and map[nx][ny] and map[nx][ny].state == TileState.TERRAFORMABLE:
                 D['tt'], D['td'] = (nx, ny), t
         return D
 
-    M = self.sorted_mines(map)
+    M = sorted_mines(map)
     decision_list = [] #This is a list of dictionaries with keys tt,td,c : Terra Tile, Terra_to_mine Direction, Count
 
     if len(M)==1:
@@ -66,7 +72,7 @@ def first_decision(map):
             if 0.4 * p1 >= 0.6 * p2 : c1, c2, c3, c4 = 2, 0, 0, 0
             else : c1, c2, c3, c4 = 1, 1, 0, 0
         else:
-            if 0.4 * p2 >= o.6 * p3 : c1, c2, c3, c4 = 2, 2, 0, 0
+            if 0.4 * p2 >= 0.6 * p3 : c1, c2, c3, c4 = 2, 2, 0, 0
             elif 0.4 * p1 < 0.6 * p4 : c1, c2, c3, c4 = 1, 1, 1, 1
             else: c1, c2, c3, c4 = 2, 1, 1, 0
         D1['c'], D2['c'], D3['c'], D4['c'] = c1, c2, c3, c4
