@@ -37,6 +37,23 @@ class BotPlayer(Player):
         self.bot_move_queues = dict 
         return
 
+    # Precomputations and runtime updates
+    def update_vars(self):
+        '''Update global variables to save data'''
+        self.game_info = self.game_state.get_info()
+        self.tiles = self.game_info.map
+        self.metal = self.game_info.metalt 
+
+
+    def init_vars(self):
+        '''Varianles that need to be updated one time'''
+        if self.initial_setup: return
+        self.initial_setup = True
+
+        self.height = len(self.game_info.map)
+        self.width = len(self.game_info.map[0])
+        self.total_tiles = self.height * self.width
+
     # Helper functions
     def get_tile_info(self, row, col) -> TileInfo :
         if row < 0 : return TileInfo(TileState.IMPASSABLE, 0, 0, 0, 0, None)
@@ -65,21 +82,52 @@ class BotPlayer(Player):
                 self.spawn_queue.pop(spawn_req)
                 self.metal -= 50
 
-    def request_move(self, rname, rinfo : RobotInfo, )
-
-    # Precomputations and runtime updates
-    def update_cache(self):
-        '''Update global variables to save data'''
-        self.game_info = self.game_state.get_info()
-        self.tiles = self.game_info.map
-        self.metal = self.game_info.metalt 
+    def request_move(self, rname, row, col):
 
 
-    def initial_cache(self):
-        '''Varianles that need to be updated one time'''
-        if self.initial_setup: return
-        self.initial_setup = True
+    def play_turn(self, game_state: GameState) -> None:
+        self.game_state = game_state
+        self.update_vars()
+        self.init_vars()
 
-        self.height = len(self.game_info.map)
-        self.width = len(self.game_info.map[0])
-        self.total_tiles = self.height * self.width
+        # print info about the game
+        print(f"Turn {self.game_info.turn}, team {self.game_info.team}")
+        print("Map height", self.height)
+        print("Map width", self.width)
+
+
+        print(f"My metal {game_state.get_metal()}")
+        robots = game_state.get_ally_robots()
+
+        # Refresh RobotInfo objects in et_pairs.
+        # TODO: check if any of our robots in here were destroyed
+        for i in range(len(self.et_pairs)):
+            exp, ter = self.et_pairs[i]
+            self.et_pairs[i] = (robots[exp.name], robots[ter.name])
+
+        if self.construct_state == 0:
+            for spawn_loc in self.ally_tiles:
+                if self.construct_state > 0:
+                    break
+                spawn_type = RobotType.EXPLORER
+                if game_state.can_spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col):
+                    game_state.spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col)
+                    self.construct_state = 1
+
+        elif self.construct_state == 1:
+            exp_name, exp = list(robots.items())[0]
+            self.explore_next(exp_name, exp)
+
+            if game_state.can_spawn_robot(RobotType.TERRAFORMER, exp.row, exp.col):
+                new_ter = game_state.spawn_robot(RobotType.TERRAFORMER, exp.row, exp.col)
+                self.construct_state = 2
+                self.et_pairs.append((exp, new_ter))
+
+            print(self.et_pairs)
+        else:
+            self.explore_action(game_state)
+
+        # iterate through dictionary of robots
+        for rname, rob in game_state.get_ally_robots().items():
+            print(f"Robot {rname} at {rob.row, rob.col}")
+        return 
