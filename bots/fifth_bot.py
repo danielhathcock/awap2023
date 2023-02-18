@@ -123,14 +123,14 @@ class BotPlayer(Player):
                 val += 1
         return val
 
-    def explore_next(self, rname: str, robot_info: RobotInfo) -> None:
+    def explore_next(self, rname: str, robot_info: RobotInfo) -> Direction:
         '''Perform the best move action for an explorer'''
         robot_row = robot_info.row
         robot_col = robot_info.col
         val: int = 0
         d_options: list = []
         for d in Direction:
-            if self.game_state.can_move_robot(rname, d) and self.game_state.get_map()[robot_row + d.value[0]][robot_col + d.value[1]].robot is None:
+            if self.game_state.can_move_robot(rname, d) and self.tiles[robot_row + d.value[0]][robot_col + d.value[1]].robot is None:
                 cur: int = self.get_explorable_tiles(robot_row + d.value[0], robot_col + d.value[1])
                 if cur > val:
                     val = cur
@@ -184,7 +184,7 @@ class BotPlayer(Player):
     def explore_action(self) -> None:
         '''Perform one move/action sequence for each of the explore/terraform pairs'''
         for exp, ter in self.et_pairs:
-            # print(f'et pair: {exp, ter}')
+            print(f'et pair: {exp, ter}')
             if exp.battery == 0:
                 # Recharge sequence
                 # print('Recharge')
@@ -195,7 +195,7 @@ class BotPlayer(Player):
                         self.game_state.move_robot(ter.name, d)
                         if self.game_state.can_robot_action(ter.name):
                             self.game_state.robot_action(ter.name)
-                        self.game_state.move_robot(exp.name, Direction((ter.row - exp.row, ter.col - exp.col))) # Check this lol
+                        self.game_state.move_robot(exp.name, d) # Check this lol
                         break
 
             else:
@@ -390,7 +390,7 @@ class BotPlayer(Player):
 
                 if game_state.can_spawn_robot(RobotType.MINER, row, col):
                     new_miner = game_state.spawn_robot(RobotType.MINER, row, col)
-                    self.mining_assignment[mining_coordinates].miners.append(new_miner.name)
+                    self.mining_assigntment[mining_coordinates].miners.append(new_miner.name)
                     # print(f'{row, col} mining at {mining_coordinates}')
                     # print(self.assigned_mines)
                     
@@ -430,6 +430,15 @@ class BotPlayer(Player):
             if tile_info.state == TileState.ILLEGAL:
                 val += 20
         return val
+<<<<<<< HEAD
+=======
+
+    def terraforming_phase2(self):
+        ginfo = self.game_state.get_info()
+        height, width = len(ginfo.map), len(ginfo.map[0])
+        # Move and action the current terraform robots
+        robots = self.game_state.get_ally_robots()
+>>>>>>> 59baf1970b67b36d0c82d27566a3043cd34693e4
 
 
     def terraforming_phase2(self):
@@ -448,6 +457,7 @@ class BotPlayer(Player):
                 count += 1
                 move_dir = None
                 potential_dir = []
+                val = 0
                 #aggressive_dir = None
                 val = 0
                 for dir in Direction:
@@ -459,10 +469,6 @@ class BotPlayer(Player):
                             potential_dir.append(dir)
                         if(cur == val):
                             potential_dir.append(dir)
-                # for dir in Direction:
-                #     loc = (rob.row + dir.value[0], rob.col + dir.value[1])
-                #     if self.game_state.can_move_robot(rname, dir) and loc not in self.assigned_mines and loc not in self.assigned_terra and self.no_allied_collision(*loc):
-                #         potential_dir.append(dir)
                         #if ginfo.map[loc[0]][loc[1]].robot is not None and ginfo.map[loc[0]][loc[1]].robot != self.team:
                             #aggressive_dir = dir
                             #An opportunity to write ADVERSERIAL CODE!!
