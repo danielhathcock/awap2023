@@ -106,25 +106,6 @@ class BotPlayer(Player):
         if self.tiles[row][col] == None: return TileInfo(TileState.ILLEGAL, 0, 0, 0, 0, None)
         return self.tiles[row][col]
 
-    def request_spawn(self, row, col, rtype: RobotType) -> SpawnRequest:
-        if self.get_tile_info(row, col).terraform < 1:
-            return SpawnRequest(-1)
-        req = SpawnRequest(0)
-        self.spawn_queue.add((self.spawn_requests, row, col, rtype, req))
-        self.spawn_requests += 1
-        return req
-
-    def try_spawn(self) -> None:
-        for spawn_req in self.spawn_queue:
-            if self.metal < 50:
-                break
-            if self.game_state.can_spawn_robot(spawn_req[3], spawn_req[1], spawn_req[2]):
-                spawn_req[4].name = self.game_state.spawn_robot(spawn_req[3], spawn_req[1], spawn_req[2]).name
-                spawn_req[4].status = 1
-                self.spawn_complete.add(spawn_req)
-                self.spawn_queue.pop(spawn_req)
-                self.metal -= 50
-
     # Exploration
     def get_explorable_tiles(self, row, col) -> int:
         val: int = 0
@@ -203,18 +184,18 @@ class BotPlayer(Player):
         self.et_pairs = updated_et_pairs
 
         # print(self.ally_tiles)
-        print('Explore action:')
+        # print('Explore action:')
         self.explore_action()
 
         if to_spawn:
-            print('spawn?')
+            # print('spawn?')
             if self.construct_state == 0 and self.game_state.get_metal() >= 100:
                 for spawn_loc in self.ally_tiles:
                     if self.construct_state > 0:
                         break
                     spawn_type = RobotType.EXPLORER
                     if self.game_state.can_spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col):
-                        print('spawn exp')
+                        # print('spawn exp')
                         self.new_exp = self.game_state.spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col)
                         self.construct_state = 1
 
@@ -223,7 +204,7 @@ class BotPlayer(Player):
                 self.explore_next(exp_name, exp)
 
                 if self.game_state.can_spawn_robot(RobotType.TERRAFORMER, exp.row, exp.col):
-                    print('spawn ter')
+                    # print('spawn ter')
                     new_ter = self.game_state.spawn_robot(RobotType.TERRAFORMER, exp.row, exp.col)
                     self.construct_state = 0
                     self.et_pairs.append((exp, new_ter))
@@ -239,109 +220,6 @@ class BotPlayer(Player):
         tile = self.game_state.get_map()[row][col]
         return tile.robot is None or tile.robot.team != self.team
 
-    def sorted_mines(self, map):
-        """ Input is map object list(list[TileInfo]) """
-        height, width = len(map), len(map[0])
-        mines = []
-        for row in map:
-            for tile in row:
-                if tile and tile.state == TileState.MINING:
-                    mines.append(tile)
-        mines.sort(key=lambda x: - x.mining)
-        # mines is sorted in decreasing order of capacity
-        return mines
-
-    def first_decision(self, map):
-        """ Decide how many miners to start with, and where to place them.
-        Returns list of dictionaries, sorted by capacity """
-        height, width = len(map), len(map[0])
-        gmt = 15  # Good Mine Threshold
-
-        T = self.assigned_terra.copy()
-
-        def get_terra_tile(mine):
-            """ Returns a dictionary with keys (tt, td) = (adjacent terra tile, directions FROM the terra tile) """
-            x, y = mine.row, mine.col
-            D, terras = {}, []
-            for t in Direction:
-                p, q = t.value
-                nx, ny = x - p, y - q
-                if 0 <= nx < height and 0 <= ny < width and map[nx][ny] and map[nx][
-                    ny].state == TileState.TERRAFORMABLE:
-                    terras.append(((nx, ny), t))
-
-            if not terras: return {}
-            for i, t in terras:
-                if i not in T:
-                    T.add(i)
-                    D['tt'], D['td'] = i, t
-                    break
-            if not D: D['tt'], D['td'] = terras[0]
-            return D
-
-        M = self.sorted_mines(map)
-        decision_list = []  # This is a list of dictionaries with keys tt,td,c : Terra Tile, Terra_to_mine Direction, Count
-
-        if not M:
-            return {}
-
-        if len(M) == 1:
-            D = get_terra_tile(M[0])
-            D['c'] = 2
-            decision_list.append(D)
-
-        elif len(M) == 2:
-            [m1, m2] = M
-            D1, D2 = get_terra_tile(m1), get_terra_tile(m2)
-            p1, p2 = m1.mining, m2.mining
-            c1, c2 = 1 if p1 < gmt else 2, 1 if p2 < gmt else 2
-            D1['c'], D2['c'] = c1, c2
-            decision_list.append(D1)
-            decision_list.append(D2)
-
-        elif len(M) == 3:
-            [m1, m2, m3] = M
-            D1, D2, D3 = get_terra_tile(m1), get_terra_tile(m2), get_terra_tile(m3)
-            p1, p2, p3 = m1.mining, m2.mining, m3.mining
-            if p2 < gmt:
-                if 0.4 * p1 >= 0.6 * p2:
-                    c1, c2, c3 = 2, 0, 0
-                else:
-                    c1, c2, c3 = 1, 1, 0
-            else:
-                if 0.4 * p2 >= 0.6 * p3:
-                    c1, c2, c3 = 2, 2, 0
-                else:
-                    c1, c2, c3 = 2, 1, 1
-            D1['c'], D2['c'], D3['c'] = c1, c2, c3
-            if c1: decision_list.append(D1)
-            if c2: decision_list.append(D2)
-            if c3: decision_list.append(D3)
-
-        else:
-            [m1, m2, m3, m4] = M[:4]
-            D1, D2, D3, D4 = get_terra_tile(m1), get_terra_tile(m2), get_terra_tile(m3), get_terra_tile(m4)
-            p1, p2, p3, p4 = m1.mining, m2.mining, m3.mining, m4.mining
-            if p2 < gmt:
-                if 0.4 * p1 >= 0.6 * p2:
-                    c1, c2, c3, c4 = 2, 0, 0, 0
-                else:
-                    c1, c2, c3, c4 = 1, 1, 0, 0
-            else:
-                if 0.4 * p2 >= 0.6 * p3:
-                    c1, c2, c3, c4 = 2, 2, 0, 0
-                elif 0.4 * p1 < 0.6 * p4:
-                    c1, c2, c3, c4 = 1, 1, 1, 1
-                else:
-                    c1, c2, c3, c4 = 2, 1, 1, 0
-            D1['c'], D2['c'], D3['c'], D4['c'] = c1, c2, c3, c4
-            if c1: decision_list.append(D1)
-            if c2: decision_list.append(D2)
-            if c3: decision_list.append(D3)
-            if c4: decision_list.append(D4)
-
-        return decision_list
-
     def next_decision(self, map):
         """ Input is new map and already assigned mines. Returns priority queue of new miners to make"""
         S = self.assigned_mines
@@ -355,8 +233,7 @@ class BotPlayer(Player):
             for t in Direction:
                 p, q = t.value
                 nx, ny = x - p, y - q
-                if 0 <= nx < height and 0 <= ny < width and map[nx][ny] and map[nx][
-                    ny].state == TileState.TERRAFORMABLE:
+                if 0 <= nx < height and 0 <= ny < width and map[nx][ny] and map[nx][ny].terraform > 0:
                     terras.append(((nx, ny), t))
 
             if not terras: return {}
@@ -375,104 +252,74 @@ class BotPlayer(Player):
                 if tile and tile.state == TileState.MINING and ((tile.row, tile.col) not in S):
                     new_mines.append(tile)
 
+        # print(new_mines)
         new_mines.sort(key=lambda x: -x.mining)
         for mine in new_mines:
             D = get_terra_tile(mine)
-            if D:
+            # print(f'({mine.row}, {mine.col}), Mining: {mine.mining}, {D}')
+            if D and mine.mining > 0:
                 D['c'] = 1
                 new_decisions.append(D)
         return new_decisions
 
-    def initial_two_turns(self, game_state: GameState) -> None:
-        ginfo = game_state.get_info()
-
-        initial_mine_list = self.first_decision(ginfo.map)
-        # move the robots
-        robots = game_state.get_ally_robots()
-        for rname, rob in robots.items():
-            if rob.type == RobotType.MINER:
-                for mine_info in initial_mine_list:
-                    if (rob.row, rob.col) == mine_info['tt']:
-                        move_dir = mine_info['td']
-                        if game_state.can_move_robot(rname, move_dir):
-                            game_state.move_robot(rname, move_dir)
-            if game_state.can_robot_action(rname):
-                game_state.robot_action(rname)  # action the robots
-
-        # print(initial_mine_list)
-        # spawn robots
-        for mine_info in initial_mine_list:
-            tt_coordinates = mine_info['tt']
-            t_direction = mine_info['td'].value  # From TT --> mining location
-            m_direction = (-1 * t_direction[0], -1 * t_direction[1])  # From mining location --> TT
-            mining_coordinates = (tt_coordinates[0] + t_direction[0], tt_coordinates[1] + t_direction[1])
-
-            # print(mine_info)
-            if ginfo.map[mining_coordinates[0]][mining_coordinates[1]].state != TileState.MINING:
-                raise Exception("why isn't this a mining tile??")
-
-            if mining_coordinates not in self.mining_assignment.keys():
-                self.mining_assignment[mining_coordinates] = Mining_Logistics(coordinates=mining_coordinates,
-                                                                              direction=m_direction)
-
-            if 2 >= mine_info['c'] > len(self.mining_assignment[mining_coordinates].miners):
-                if game_state.can_spawn_robot(RobotType.MINER, tt_coordinates[0],
-                                              tt_coordinates[1]):  # spawn the robots
-                    new_miner = game_state.spawn_robot(RobotType.MINER, tt_coordinates[0], tt_coordinates[1])
-                    # print(new_miner.name)
-                    self.mining_assignment[mining_coordinates].mine2tt = (-1 * t_direction[0], -1 * t_direction[1])
-                    self.mining_assignment[mining_coordinates].miners.append(new_miner.name)
-
-                    self.assigned_mines.add(mining_coordinates)
-                    self.assigned_terra.add(tt_coordinates)
-
-        # print(self.mining_assignment)
-
     def general_mining_turn(self, game_state: GameState):
-        ginfo = game_state.get_info()
         robots = game_state.get_ally_robots()
 
         # moving, actioning, or recharging
-        for mining_location in self.mining_assignment:
+        for mining_location in list(self.mining_assignment.keys()):
             logistics = self.mining_assignment[mining_location]
             these_robots = logistics.miners
 
-            if 1 >= len(these_robots) > 0:  # FIX!!!!!!!!!!
-                # print(these_robots)
+            if len(these_robots) == 1:
                 miner = these_robots[0]
-                miner_robot_object = robots[miner]
-                if (miner_robot_object.row, miner_robot_object.col) == mining_location:
-                    # print("MINING: " + str(ginfo.turn))
-                    # print("BATTERY: " + str(miner_robot_object.battery))
-                    # print()
-                    if miner_robot_object.battery >= GameConstants.MINER_ACTION_COST:
-                        game_state.robot_action(miner)
+
+                if miner not in robots:
+                    # Try to rebuild our miner!!
+                    row, col = logistics.tt_coordinates
+                    if game_state.get_map()[row][col].terraform > 0:
+                        if game_state.can_spawn_robot(RobotType.TERRAFORMER, row, col):
+                            new_rob = game_state.spawn_robot(RobotType.TERRAFORMER, row, col)
+                            logistics.miners = [new_rob.name]
                     else:
-                        if self.no_collision(*logistics.tt_coordinates):
-                            game_state.move_robot(miner, Direction(logistics.mine2tt))
-                elif (miner_robot_object.row, miner_robot_object.col) == logistics.tt_coordinates:
-                    # ginfo.map[miner_robot_object.row][miner_robot_object.col].terraform > 0:
-                    #
-                    # print("CHARGING: " + str(ginfo.turn))
-                    if miner_robot_object.battery == GameConstants.INIT_BATTERY:
-                        if self.no_collision(*logistics.mining_coordinates):
-                            game_state.move_robot(miner, Direction(logistics.tt2mine))
+                        # Kill this logistics object
+                        del self.mining_assignment[mining_location]
+                        self.assigned_mines.remove(mining_location)
+
                 else:
-                    raise Exception("Miners aren't in the right place!!")
-            elif len(these_robots) == 2:
-                continue
-            elif len(these_robots) > 2:
+                    miner_robot_object = robots[miner]
+                    if (miner_robot_object.row, miner_robot_object.col) == mining_location:
+                        # print("MINING: " + str(ginfo.turn))
+                        # print("BATTERY: " + str(miner_robot_object.battery))
+                        # print()
+                        if miner_robot_object.battery >= GameConstants.MINER_ACTION_COST:
+                            game_state.robot_action(miner)
+                        else:
+                            if self.no_collision(*logistics.tt_coordinates):
+                                game_state.move_robot(miner, Direction(logistics.mine2tt))
+                    elif (miner_robot_object.row, miner_robot_object.col) == logistics.tt_coordinates:
+                        # ginfo.map[miner_robot_object.row][miner_robot_object.col].terraform > 0:
+                        #
+                        # print("CHARGING: " + str(ginfo.turn))
+                        if miner_robot_object.battery == GameConstants.INIT_BATTERY:
+                            if self.no_collision(*logistics.mining_coordinates):
+                                game_state.move_robot(miner, Direction(logistics.tt2mine))
+                    else:
+                        raise Exception("Miners aren't in the right place!!")
+            elif len(these_robots) > 1:
                 # print(len(these_robots))
-                raise Exception("Way too  many robots here...")
+                raise Exception("Way too many robots here...")
 
         # Spawn new miners
         # print(f'next decision {self.next_decision(self.game_state.get_map())}')
         for mine_info in self.next_decision(self.game_state.get_map()):
-            if self.game_state.get_metal() > 50:
+            # print(f'mine info: {mine_info}')
+            if self.game_state.get_metal() >= 50:
+
                 tt_coordinates = mine_info['tt']
                 t_direction = mine_info['td'].value  # From TT --> mining location
                 m_direction = (-1 * t_direction[0], -1 * t_direction[1])  # From mining location --> TT
                 mining_coordinates = (tt_coordinates[0] + t_direction[0], tt_coordinates[1] + t_direction[1])
+                print(f'Trying to spawn for {mining_coordinates}')
 
                 self.mining_assignment[mining_coordinates] = Mining_Logistics(coordinates=mining_coordinates,
                                                                               direction=m_direction)
@@ -487,9 +334,13 @@ class BotPlayer(Player):
 
                     self.assigned_mines.add(mining_coordinates)
                     self.assigned_terra.add(tt_coordinates)
+                # else:
+                # raise Exception('We couldnt spawn the miner!!!')
             else:
+                print(f'no metal: {self.game_state.get_metal()}')
                 break
 
+    # Terraforming stuff
     def terraforming_phase2(self):
         ginfo = self.game_state.get_info()
         height, width = len(ginfo.map), len(ginfo.map[0])
@@ -497,27 +348,36 @@ class BotPlayer(Player):
         robots = self.game_state.get_ally_robots()
 
         # Move and Action
-        # print("TERRA: FIND A DIRECTION TO MOVE")
+        print("TERRA: FIND A DIRECTION TO MOVE")
         for rname, rob in robots.items():
             if rob.type == RobotType.TERRAFORMER:
+                #print("Figuring out direction for " + rname)
 
                 move_dir = None
                 potential_dir = []
+                # aggressive_dir = None
                 for dir in Direction:
                     loc = (rob.row + dir.value[0], rob.col + dir.value[1])
                     if self.game_state.can_move_robot(rname, dir) and self.no_allied_collision(
                             *loc) and loc not in self.assigned_mines and loc not in self.assigned_terra:
                         potential_dir.append(dir)
+                        # if ginfo.map[loc[0]][loc[1]].robot is not None and ginfo.map[loc[0]][loc[1]].robot != self.team:
+                        # aggressive_dir = dir
+                        # An opportunity to write ADVERSERIAL CODE!!
+                # if aggressive_dir is not None and ginfo.turn >= 100:
+                # print("MWUHAHAHAHHAHAHAH!")
+                # move_dir = aggressive_dir
                 if len(potential_dir) > 0:
+                    #print("Is this possibly long??")
                     move_dir = random.choice(potential_dir)
+
                 if move_dir is not None:
                     self.game_state.move_robot(rname, move_dir)
                 # action
                 if self.game_state.can_robot_action(rname):
                     self.game_state.robot_action(rname)
-
         # Spawn new terra formers.
-        # print("TERRA: Find Allied Tiles")
+        #print("TERRA: Find Allied Tiles")
         ally_tiles = []
         for row in range(height):
             for col in range(width):
@@ -529,18 +389,17 @@ class BotPlayer(Player):
                         if tile.terraform > 0:  # ensure tile is ally-terraformed
                             ally_tiles += [tile]
 
-        # print("TERRA: Pick a random allied tile")
+        #print("TERRA: Pick a random allied tile")
         # pick a several random ally tiles to spawn on, while we have the budget to do so
         if len(ally_tiles) > 0:
-            # num_new_bots = int(ginfo.metal * 0.75 / GameConstants.ROBOT_SPAWN_COST)
-            num_new_bots = 1
+            num_new_bots = int(ginfo.metal * 0.8 / GameConstants.ROBOT_SPAWN_COST)
             spawn_locs = random.sample(ally_tiles, num_new_bots)
             for spawn_loc in spawn_locs:
                 # spawn the robot
                 # check if we can spawn here (checks if we can afford, tile is empty, and tile is ours)
                 if self.game_state.can_spawn_robot(RobotType.TERRAFORMER, spawn_loc.row, spawn_loc.col):
                     self.game_state.spawn_robot(RobotType.TERRAFORMER, spawn_loc.row, spawn_loc.col)
-
+        print("TERRA: done")
         return
 
     def play_turn(self, game_state: GameState) -> None:
@@ -551,23 +410,24 @@ class BotPlayer(Player):
 
         # print info about the game
         print(f"Turn {self.ginfo.turn}, team {self.ginfo.team}")
-        print("Map height", self.height)
-        print("Map width", self.width)
-        print(f"My metal {game_state.get_metal()}")
+        # print("Map height", self.height)
+        # print("Map width", self.width)
+        # print(f"My metal {game_state.get_metal()}")
         # Extract information
 
         if self.ginfo.turn <= 20:
             self.exploration_phase(to_spawn=True)
-        elif self.ginfo.turn <= 22:
-            self.initial_two_turns(game_state)
         else:
+            print('Begin explore phase')
             self.exploration_phase()
+            print('End explore, begin mine')
             try:
                 self.general_mining_turn(game_state)
             except KeyError:
                 print('yo yo yo')
-
+            print('End mine, begin terra')
             self.terraforming_phase2()
+            print('End terra')
         if self.ginfo.turn == 200:
             print(len(self.ginfo.ally_robots))
 
