@@ -348,20 +348,20 @@ class BotPlayer(Player):
             if not D: D['tt'], D['td'] = terras[0]
             return D
 
-        New_mines = []
-        New_decisions = []
+        new_mines = []
+        new_decisions = []
         for row in map:
             for tile in row:
                 if tile and tile.state == TileState.MINING and ((tile.row, tile.col) not in S):
-                    New_mines.append(tile)
+                    new_mines.append(tile)
 
-        New_mines.sort(key=lambda x: -x.mining)
-        for mine in New_mines:
+        new_mines.sort(key=lambda x: -x.mining)
+        for mine in new_mines:
             D = get_terra_tile(mine)
             if D:
                 D['c'] = 1
-                New_decisions.append(D)
-        return New_decisions
+                new_decisions.append(D)
+        return new_decisions
 
     def initial_two_turns(self, game_state: GameState) -> None:
         ginfo = game_state.get_info()
