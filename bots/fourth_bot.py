@@ -56,6 +56,7 @@ class BotPlayer(Player):
 
         # exploring stuff
         self.et_pairs: list[tuple[RobotInfo, RobotInfo]] = []
+        self.exp_terras = set()
         self.construct_state = 0
         self.new_exp = None
 
@@ -141,11 +142,13 @@ class BotPlayer(Player):
                 self.game_state.move_robot(rname, d_move)
                 if self.game_state.can_robot_action(rname):
                     self.game_state.robot_action(rname)
+                return True
+        return False
 
     def explore_action(self) -> None:
         '''Perform one move/action sequence for each of the explore/terraform pairs'''
         for exp, ter in self.et_pairs:
-            # print(f'et pair: {exp, ter}')
+            print(f'et pair: {exp, ter}')
             if exp.battery == 0:
                 # Recharge sequence
                 # print('Recharge')
@@ -163,14 +166,15 @@ class BotPlayer(Player):
                 # Explore sequence
                 # print('Explore')
                 old_exp_row, old_exp_col = (exp.row, exp.col)
-                self.explore_next(exp.name, exp)
+                moved = self.explore_next(exp.name, exp)
 
-                # Move Terraformer to the previous location of the explorer
-                d = Direction((old_exp_row - ter.row, old_exp_col - ter.col))
-                if self.game_state.can_move_robot(ter.name, d) and self.game_state.get_map()[old_exp_row][old_exp_col].robot is None:
-                    self.game_state.move_robot(ter.name, d)
-                if self.game_state.can_robot_action(ter.name):
-                    self.game_state.robot_action(ter.name)
+                if moved:
+                    # Move Terraformer to the previous location of the explorer
+                    d = Direction((old_exp_row - ter.row, old_exp_col - ter.col))
+                    if self.game_state.can_move_robot(ter.name, d) and self.game_state.get_map()[old_exp_row][old_exp_col].robot is None:
+                        self.game_state.move_robot(ter.name, d)
+                    if self.game_state.can_robot_action(ter.name):
+                        self.game_state.robot_action(ter.name)
 
     def exploration_phase(self, to_spawn=False):
         # Refresh RobotInfo objects in et_pairs.
@@ -180,6 +184,8 @@ class BotPlayer(Player):
         for exp, ter in self.et_pairs:
             if exp.name in robots and ter.name in robots:
                 updated_et_pairs.append((robots[exp.name], robots[ter.name]))
+            else:
+                self.exp_terras.remove(ter.name)
         self.et_pairs = updated_et_pairs
 
         # print(self.ally_tiles)
@@ -207,6 +213,7 @@ class BotPlayer(Player):
                     new_ter = self.game_state.spawn_robot(RobotType.TERRAFORMER, exp.row, exp.col)
                     self.construct_state = 0
                     self.et_pairs.append((exp, new_ter))
+                    self.exp_terras.add(new_ter.name)
 
                 # print(self.et_pairs)
             
