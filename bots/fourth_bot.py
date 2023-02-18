@@ -8,8 +8,6 @@ from src.player import Player
 from src.map import TileInfo, RobotInfo
 from src.robot import Robot
 
-import time
-
 class SpawnRequest:
     def __init__(self, status):
         self.name = None
@@ -154,7 +152,7 @@ class BotPlayer(Player):
     def explore_action(self) -> None:
         '''Perform one move/action sequence for each of the explore/terraform pairs'''
         for exp, ter in self.et_pairs:
-            print(f'et pair: {exp, ter}')
+            # print(f'et pair: {exp, ter}')
             if exp.battery == 0:
                 # Recharge sequence
                 # print('Recharge')
@@ -380,14 +378,8 @@ class BotPlayer(Player):
         
         # Move and Action
         print("TERRA: FIND A DIRECTION TO MOVE")
-        total1 = 0
-        total2 = 0
-        total3 = 0
         for rname, rob in robots.items():
-            t1 = time.time()
             if rob.type == RobotType.TERRAFORMER and rob.name not in self.exp_terras:
-                t2 = time.time()
-                total1 += t2-t1
                 move_dir = None
                 potential_dir = []
                 #aggressive_dir = None
@@ -401,8 +393,6 @@ class BotPlayer(Player):
                #if aggressive_dir is not None and ginfo.turn >= 100:
                     #print("MWUHAHAHAHHAHAHAH!")
                     #move_dir = aggressive_dir
-                t3 = time.time()
-                total2 += t3-t2
                 if len(potential_dir) > 0:
                     move_dir = random.choice(potential_dir)
 
@@ -411,10 +401,7 @@ class BotPlayer(Player):
                 #action
                 if self.game_state.can_robot_action(rname):
                     self.game_state.robot_action(rname)
-                t4 = time.time()
-                total3 += t4-t3
 
-        print(total1, total2, total3)
         # Spawn new terra formers.
         print("TERRA: Find Allied Tiles")
         ally_tiles = []
@@ -459,7 +446,7 @@ class BotPlayer(Player):
         # print(f"My metal {game_state.get_metal()}")
         # Extract information
 
-        if self.ginfo.turn <= 20:
+        if self.ginfo.turn <= min(self.height // 2, 20):
             self.exploration_phase(to_spawn=True)
         else:
             print('Begin explore phase')
