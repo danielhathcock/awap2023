@@ -8,9 +8,12 @@ from src.map import TileInfo, RobotInfo
 import random
 
 class Mining_Logistics:
-    def __init__(self, coordinates, direction=None, robots=[]):
+    def __init__(self, coordinates, direction=None, robots=None):
         self.mining_coordinates = coordinates
-        self.miners = robots  # should just be a list of names
+        if robots is None:
+            self.miners = []  # should just be a list of names
+        else:
+            self.miners = robots
         self.mine2tt = direction  # Vector mining location --> terraforming tile direction
 
         self.tt2mine = (-1 * self.mine2tt[0], -1 * self.mine2tt[1])
@@ -24,6 +27,7 @@ class BotPlayer(Player):
     def __init__(self, team: Team):
         self.team = team
         self.mining_assignment = dict() # A dictionary mapping mines to a Mining_Logistics object
+        self.charging_spots = []
         return
 
     def initial_two_turns(self, game_state: GameState) -> None:
