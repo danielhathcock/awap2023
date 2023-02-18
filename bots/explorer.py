@@ -31,6 +31,12 @@ class BotPlayer(Player):
         self.ally_distance = []
         self.ally_distance_vis = set()
 
+        # Spawning stuff
+        self.spawn_queue = set()
+        self.spawn_requests = 0
+
+        # Moving stuff
+        self.bot_move_queues = dict 
         return
 
     def get_tile_info(self, row, col) -> TileInfo :
@@ -41,6 +47,8 @@ class BotPlayer(Player):
         if self.tiles[row][col] == None: return TileInfo(TileState.ILLEGAL, 0, 0, 0, 0, None)
         return self.tiles[row][col]
 
+
+    # Precomputations and runtime updates
     def update_cache(self):
         '''Update global variables to save data'''
         self.game_info = self.game_state.get_info()
@@ -81,8 +89,16 @@ class BotPlayer(Player):
         for tile in self.ally_tiles:
             self.ally_bfs(tile.row, tile.col)
 
+    # Helper functions
+    def request_spawn(self, row, col, rtype : RobotType):
+        if self.get_tile_info(row,col).terraform < 1:
+            return False
+        self.spawn_queue.add((self.spawn_requests, row, col, rtype))
+        self.spawn_requests += 1
+        return True
+
     def unexplored_bfs(self, row, col, threshold):
-        if self.get_tile_info(row,col) != TileInfo.ILLEGAL:
+        if self.get_tile_info(row,col).state != TileInfo.ILLEGAL:
             return None
         retList = []
         vis = {(row,col)}
@@ -150,6 +166,7 @@ class BotPlayer(Player):
             self.ally_distance[row][col] = None
         return self.ally_distance[row][col]
 
+    # Exploration
     def add_prio(self, row, col, val):
         ratio = 0.9
         dist = 12
@@ -158,21 +175,40 @@ class BotPlayer(Player):
             r, c, d = cur
             self.explore_prio[r][c] += val * pow(ratio, d)
 
+    # Wrappers for traditional functions
+    def execute_explore(rname : str, rinfo : RobotInfo):
+        if rinfo.type != RobotType.EXPLORER: return False
+        rrow = rinfo.row
+        rcol = rinfo.col
+        if self.game_state.can_robot_action(rname):
+            self.game_state.robot_action(rname)
+            for d in Direction:
+                nr, nc = rrow + d.value[0], rcol + d.value[1]
+                if self.get_tile_info(nr,nc).state == TileState.ILLEGAL:
+                    self.add_prio(nr,nc,self.default_explore_val)
+                    self.explore_prio[nr][nc] = 0
+                    self.update_ally_distance(nr,nc)
+        return True
+
+    # Strategies
+    # Explore
     def explore_score(self, row, col):
         return self.explore_prio[row][col]
 
     def explore_strategy(self, threshold):
-        pos_to_explore = []
+        self.pos_to_explore = deque()
         for row in range(self.height):
             for col in range(self.width):
                 score = self.explore_score(row,col)
                 if score > threshold:
                     pos_to_explore.append((score,row, col))
-        pos_to_explore.sort()
+        pos_to_explore = sorted(pos_to_explore)
         pos_to_explore.reverse()
         for ps,pr,pc in pos_to_explore:
-            self.request_explore(pr,pc)
-            self.add_prio(pr,pc,-self.default_explore_val)
+            if self.explore_score(row,col) < self.default_explore_threshold:
+                continue;
+            if not self.request_explore(pr,pc):
+                break
 
     def get_explorable_tiles(self, row, col) -> int:
         val : int = 0
@@ -202,14 +238,7 @@ class BotPlayer(Player):
                     continue
         d_move = random.choice(d_options)
         self.game_state.move_robot(rname, d_move)
-        if self.game_state.can_robot_action(rname):
-            self.game_state.robot_action(rname)
-            for d in Direction:
-                nr, nc = robot_row + d.value[0], robot_col + d.value[1]
-                if self.get_tile_info(nr,nc).state == TileState.ILLEGAL:
-                    self.add_prio(nr,nc,self.default_explore_val)
-                    self.explore_prio[nr][nc] = 0
-                    self.update_ally_distance(nr,nc)
+        self.execute_explore(rname)
 
     def explore_pair(self, rname : str, robot_info : RobotInfo) -> None:
         '''Perform the best move action for an explorer'''
@@ -264,6 +293,9 @@ class BotPlayer(Player):
                 game_state.move_robot(ter.name, Direction((old_exp_row - ter.row, old_exp_col - ter.col)))
                 if game_state.can_robot_action(ter.name):
                     game_state.robot_action(ter.name)   
+
+
+
 
     def play_turn(self, game_state: GameState) -> None:
         self.game_state = game_state
