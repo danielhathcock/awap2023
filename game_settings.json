@@ -1,5 +1,5 @@
 {
-	"map": "four_corners",
-	"blue_bot": "daniel_bot",
+	"map": "x",
+	"blue_bot": "first_bot",
 	"red_bot": "nothing_bot"
 }

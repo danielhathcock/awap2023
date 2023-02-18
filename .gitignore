@@ -2,7 +2,6 @@ replays/*
 __pycache__/
 .DS_Store
 
-
 # Created by https://www.toptal.com/developers/gitignore/api/python,emacs,visualstudiocode,macos,linux,windows,pycharm+all,sublimetext
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,emacs,visualstudiocode,macos,linux,windows,pycharm+all,sublimetext
 
@@ -195,7 +194,7 @@ fabric.properties
 ### Python ###
 # Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[cod]
+# *.py[cod]
 *$py.class
 
 # C extensions
@@ -439,3 +438,6 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/python,emacs,visualstudiocode,macos,linux,windows,pycharm+all,sublimetext
+
+pyrightconfig.json
+shell.nix
