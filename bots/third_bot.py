@@ -147,20 +147,17 @@ class BotPlayer(Player):
         val: int = 0
         d_options: list = []
         for d in Direction:
-            if self.game_state.can_move_robot(rname, d):
+            if self.game_state.can_move_robot(rname, d) and self.game_state.get_map()[robot_row + d.value[0]][robot_col + d.value[1]].robot is None:
                 cur: int = self.get_explorable_tiles(robot_row + d.value[0], robot_col + d.value[1])
-                if cur > val and self.game_state.get_map()[robot_row + d.value[0]][
-                    robot_col + d.value[1]].robot is None:
+                if cur > val:
                     val = cur
                     d_options = []
                     d_options.append(d)
                     continue
-                if cur == val and self.game_state.get_map()[robot_row + d.value[0]][
-                    robot_col + d.value[1]].robot is None:
+                if cur == val:
                     d_options.append(d)
                     continue
         d_move = random.choice(d_options)
-        self.game_state.move_robot(rname, d_move)
         if self.game_state.can_move_robot(rname, d_move):
             self.game_state.move_robot(rname, d_move)
             if self.game_state.can_robot_action(rname):
@@ -172,19 +169,20 @@ class BotPlayer(Player):
         for exp, ter in self.et_pairs:
             if exp.battery == 0:
                 # Recharge sequence
+                print('Recharge')
                 for d in Direction:
                     dest_row = ter.row + d.value[0]
                     dest_col = ter.col + d.value[1]
-                    if self.game_state.can_move_robot(ter.name, d) and self.game_state.get_map()[dest_row][
-                        dest_col].robot is None:
+                    if self.game_state.can_move_robot(ter.name, d) and self.game_state.get_map()[dest_row][dest_col].robot is None:
                         self.game_state.move_robot(ter.name, d)
                         if self.game_state.can_robot_action(ter.name):
                             self.game_state.robot_action(ter.name)
-                        self.game_state.move_robot(exp.name, Direction((ter.row - exp.row, ter.col - exp.col)))
+                        self.game_state.move_robot(exp.name, Direction((ter.row - exp.row, ter.col - exp.col))) # Check this lol
                         break
 
             else:
                 # Explore sequence
+                print('Explore')
                 old_exp_row, old_exp_col = (exp.row, exp.col)
                 self.explore_next(exp.name, exp)
 
@@ -223,8 +221,6 @@ class BotPlayer(Player):
             # print(self.et_pairs)
         else:
             self.explore_action()
-
-
 
 
 
