@@ -358,10 +358,10 @@ class BotPlayer(Player):
 
     # Terraforming stuff
     def terraforming_phase2(self):
-        ginfo = self.game_state.get_info()
-        height, width = len(ginfo.map), len(ginfo.map[0])
+        ginfo = self.ginfo
+        height, width = self.height, self.width
         # Move and action the current terraform robots
-        robots = self.game_state.get_ally_robots()
+        robots = self.robots
 
         # Move and Action
         print("TERRA: FIND A DIRECTION TO MOVE")
@@ -391,23 +391,11 @@ class BotPlayer(Player):
                     self.game_state.robot_action(rname)
 
         # Spawn new terra formers.
-        print("TERRA: Find Allied Tiles")
-        ally_tiles = []
-        for row in range(height):
-            for col in range(width):
-                # get the tile at (row, col)
-                tile = ginfo.map[row][col]
-                # skip fogged tiles
-                if tile is not None:  # ignore fogged tiles
-                    if tile.robot is None:  # ignore occupied tiles
-                        if tile.terraform > 0:  # ensure tile is ally-terraformed
-                            ally_tiles += [tile]
-
         print("TERRA: Pick a random allied tile")
         # pick a several random ally tiles to spawn on, while we have the budget to do so
-        if len(ally_tiles) > 0:
+        if len(self.ally_tiles) > 0:
             num_new_bots = int(ginfo.metal * 0.8 / GameConstants.ROBOT_SPAWN_COST)
-            spawn_locs = random.sample(ally_tiles, num_new_bots)
+            spawn_locs = random.sample(self.ally_tiles, num_new_bots)
             for spawn_loc in spawn_locs:
                 # spawn the robot
                 # check if we can spawn here (checks if we can afford, tile is empty, and tile is ours)
