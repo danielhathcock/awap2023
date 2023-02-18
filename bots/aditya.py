@@ -3,7 +3,7 @@ from src.game_state import GameState, GameInfo
 from src.player import Player
 from src.map import TileInfo, RobotInfo
 
-def sorted_mines(map):
+def sorted_mines(self, map):
     """ Input is map object list(list[TileInfo]) """
     height, width = len(map), len(map[0])
     mines = []
@@ -15,7 +15,7 @@ def sorted_mines(map):
     # mines is sorted in decreasing order of capacity
     return mines
 
-def first_decision(map):
+def first_decision(self, map):
     """ Decide how many miners to start with, and where to place them.
      Returns list of dictionaries, sorted by capacity """
     height, width = len(map), len(map[0])
@@ -31,7 +31,7 @@ def first_decision(map):
                 D['tt'], D['td'] = (nx, ny), t
         return D
 
-    M = sorted_mines(map)
+    M = self.sorted_mines(map)
     decision_list = [] #This is a list of dictionaries with keys tt,td,c : Terra Tile, Terra_to_mine Direction, Count
 
     if len(M)==1:
@@ -81,3 +81,30 @@ def first_decision(map):
         if c4: decision_list.append(D4)
 
     return decision_list
+
+def next_decision(self, map):
+    """ Input is new map and already assigned mines. Returns priority queue of new miners to make"""
+    S = self.assigned_mines
+    def get_terra_tile(mine):
+        """ Returns a dictionary with keys (tt, td) = (adjacent terra tile, directions FROM the terra tile) """
+        x, y = mine.row, mine.col
+        D = {}
+        for t in Direction:
+            p, q = t.value
+            nx, ny = x - p , y - q
+            if 0 <= nx < height and 0 <= ny < width and map[nx][ny] and map[nx][ny].state == TileState.TERRAFORMABLE:
+                D['tt'], D['td'] = (nx, ny), t
+        return D
+
+    New_mines = []
+    for row in map:
+        for tile in row:
+            if tile and tile.state == TileState.MINING and (tile not in S):
+                D = get_terra_tile(tile)
+                if D:
+                    S.add(tile)
+                    D['c'] = 1
+                    New_mines.append(D)
+    self.assigned_mines = S
+    return New_mines
+
