@@ -85,6 +85,7 @@ def first_decision(self, map):
 def next_decision(self, map):
     """ Input is new map and already assigned mines. Returns priority queue of new miners to make"""
     S = self.assigned_mines
+    height, width = len(map), len(map[0])
     def get_terra_tile(mine):
         """ Returns a dictionary with keys (tt, td) = (adjacent terra tile, directions FROM the terra tile) """
         x, y = mine.row, mine.col
@@ -107,7 +108,7 @@ def next_decision(self, map):
     for mine in New_mines:
         D = get_terra_tile(mine)
         if D:
-            S.add((tile.row, tile.col))
+            S.add((mine.row, mine.col))
             D['c'] = 1
             New_decisions.append(D)
     self.assigned_mines = S
