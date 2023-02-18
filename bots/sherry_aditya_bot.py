@@ -1,6 +1,9 @@
+from typing import List, Tuple, Any
+
 from src.game_constants import RobotType, Direction, Team, TileState, GameConstants
 from src.game_state import GameState, GameInfo
 from src.player import Player
+from aditya import *
 from src.map import TileInfo, RobotInfo
 import random
 
@@ -9,8 +12,9 @@ class Mining_Logistics:
     self.mining_coordinates = coordinates
     self.miners = robots # should just be a list of names
     self.mine2tt = direction # Vector mining location --> terraforming tile direction
-    self.tt2mine = (-1 * self.mine2tt[0], -1* self.mine2tt[1])
 
+    self.tt2mine = (-1 * self.mine2tt[0], -1* self.mine2tt[1])
+    self.tt_coordinates = (self.mining_coordinates[0] - self.mine2tt[0], self.mining_coordinates[1] - self.mine2tt[1])
 
 class BotPlayer(Player):
     """
@@ -25,7 +29,7 @@ class BotPlayer(Player):
     def initial_two_turns(self, game_state: GameState) -> None:
         ginfo = game_state.get_info()
 
-        initial_mine_list = self.first_decision(ginfo.map)
+        initial_mine_list = first_decision(ginfo.map)
         # move the robots
         robots = game_state.get_ally_robots()
         for rname, rob in robots.items():
@@ -50,12 +54,12 @@ class BotPlayer(Player):
                     new_miner = game_state.spawn_robot(RobotType.MINER, tt_coordinates[0], tt_coordinates[1])
 
                     self.mining_assignment[mining_coordinates].mine2tt = (-1 * t_direction[0], -1 * t_direction[1])
-                    self.mining_assignment[mining_coordinates].miners.add(new_miner)
+                    self.mining_assignment[mining_coordinates].miners.append(new_miner)
             else:
                 raise Exception("Number of robots for a single mine can't be larger than 2!")
 
 
-    def general_mining_turn(self, game_state: GameState, new_mines=[]) -> None:
+    def general_mining_turn(self, game_state: GameState, new_mines=[]) -> list[tuple[Any, Any]]:
         ginfo = game_state.get_info()
         robots = game_state.get_ally_robots()
 
@@ -81,11 +85,19 @@ class BotPlayer(Player):
             else:
                 raise Exception("Way too  many robots here...")
 
+        unfinished_mines = []
         # spawning
-        #for mining_location in new_mines:
+        for mining_location, mine2tt in new_mines:
+            self.mining_assignment[mining_location] = Mining_Logistics(coordinates=mining_location, direction=mine2tt)
+            row = self.mining_assignment[mining_location].tt_coordinates[0]
+            col = self.mining_assignment[mining_location].tt_coordinates[1]
+            if game_state.can_spawn_robot(RobotType.MINER, row, col):
+                new_miner = game_state.spawn_robot(RobotType.MINER, row, col)
+                self.mining_assignment[mining_location].miners.append(new_miner)
+            else:
+                unfinished_mines.append((mining_location, mine2tt))
 
-
-
+        return unfinished_mines
 
     def play_turn(self, game_state: GameState) -> None:
 
