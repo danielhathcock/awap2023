@@ -234,23 +234,21 @@ class BotPlayer(Player):
             # print('spawn?')
             if self.construct_state == 0 and self.game_state.get_metal() >= 100:
 
-                # ally_tiles = []
-                # for row in range(len(self.ginfo.map)):
-                #     for col in range(len(self.ginfo.map[0])):
-                #         tile = self.ginfo.map[row][col]
-                #         if tile and tile.terraform > 0 and tile.robot is None:
-                #             ally_tiles.append(tile)
+                ally_tiles = []
+                for row in range(len(self.ginfo.map)):
+                    for col in range(len(self.ginfo.map[0])):
+                        tile = self.ginfo.map[row][col]
+                        if tile and tile.terraform > 0 and tile.robot is None and (row, col) not in self.assigned_mines and (row, col) not in self.assigned_terra:
+                            ally_tiles.append(tile)
 
+                spawn_loc = random.choice(ally_tiles)
                 # ally_tiles = self.get_explorer_spwan_location(5)
-                # spawn_loc = random.choice(ally_tiles)
-
-                ally_tiles = self.get_explorer_spwan_location(5)
-                _, spawn_row, spawn_col = random.choice(ally_tiles)
+                # _, spawn_row, spawn_col = random.choice(ally_tiles)
 
                 spawn_type = RobotType.EXPLORER
-                if self.game_state.can_spawn_robot(spawn_type, spawn_row, spawn_col):
+                if self.game_state.can_spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col):
                     # print('spawn exp')
-                    self.new_exp = self.game_state.spawn_robot(spawn_type, spawn_row, spawn_col)
+                    self.new_exp = self.game_state.spawn_robot(spawn_type, spawn_loc.row, spawn_loc.col)
                     self.construct_state = 1
 
             elif self.construct_state == 1:
@@ -501,7 +499,7 @@ class BotPlayer(Player):
                 tile = ginfo.map[row][col]
                 # skip fogged tiles
                 if tile is not None:  # ignore fogged tiles
-                    if tile.robot is None:  # ignore occupied tiles
+                    if tile.robot is None and (tile.row, tile.col) not in self.assigned_mines and (tile.row, tile.col) not in self.assigned_terra:  # ignore occupied tiles
                         if tile.terraform > 0:  # ensure tile is ally-terraformed
                             ally_tiles += [tile]
 
