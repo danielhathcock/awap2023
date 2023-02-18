@@ -30,6 +30,7 @@ class BotPlayer(Player):
 
         # Spawning stuff
         self.spawn_queue = set()
+        self.spawn_complete = set()
         self.spawn_requests = 0
 
         # Moving stuff
@@ -55,7 +56,14 @@ class BotPlayer(Player):
 
     def try_spawn(self) -> None:
         for spawn_req in self.spawn_queue:
-            if self.metal >= 50 :
+            if self.metal < 50:
+                break
+            if self.game_state.can_spawn_robot(spawn_req[3], spawn_req[1], spawn_req[2]) :
+                spawn_req[4].name = self.game_state.spawn_robot(spawn_req[3], spawn_req[1], spawn_req[2]).name
+                spawn_req[4].status = 1
+                self.spawn_complete.add(spawn_req)
+                self.spawn_queue.pop(spawn_req)
+                self.metal -= 50
 
     def request_move(self, rname, rinfo : RobotInfo, )
 
@@ -64,7 +72,7 @@ class BotPlayer(Player):
         '''Update global variables to save data'''
         self.game_info = self.game_state.get_info()
         self.tiles = self.game_info.map
-        self.metal = self.game_info.metal
+        self.metal = self.game_info.metalt 
 
 
     def initial_cache(self):
